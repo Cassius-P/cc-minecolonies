@@ -20,7 +20,9 @@ M.title = "Workers"
 local function trunc(s, n) return #s > n and s:sub(1, n) or s end
 
 local function drawRosterRow(rx, ry, colW, r)
-  if r.kind == "head" then
+  if r.kind == "gap" then
+    return  -- blank spacer row between jobs
+  elseif r.kind == "head" then
     draw.put(rx, ry, trunc(string.format("%s (%d/%d)", cap(r.building), r.filled, r.max), colW), C.accent2, C.card)
   elseif r.kind == "worker" then
     if r.status == "replace" then

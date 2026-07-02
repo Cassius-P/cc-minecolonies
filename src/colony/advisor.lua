@@ -112,6 +112,7 @@ function M.computeRoster(citizens, buildings, sugs)
       local k = locStr(b.location)
       local workers = (type(b.citizens) == "table") and b.citizens or {}
       local maxS = maxSlotsFor(jk, b.level)
+      if #flat > 0 then flat[#flat + 1] = { kind = "gap" } end  -- blank row between jobs
       flat[#flat + 1] = { kind = "head", building = jk, filled = #workers, max = maxS }
       for _, w in ipairs(workers) do
         local full = byId[w.id]
