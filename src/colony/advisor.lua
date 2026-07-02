@@ -17,10 +17,37 @@ local util   = require("common.util")
 local skills = require("colony.skills")
 
 local jobKey, locStr = util.jobKey, util.locStr
+local cap = util.capitalize
 local JOB_SKILLS, maxSlotsFor = skills.JOB_SKILLS, skills.maxSlotsFor
 local scoreFor = skills.scoreFor
 
 local M = {}
+
+-- Number buildings of the same job type: locStr -> { jk, num, count }.
+-- Stable order by location so numbering is consistent across scans.
+local function numberBuildings(buildings)
+  local groups = {}
+  for _, b in ipairs(buildings) do
+    local jk = b.type or jobKey(b.name)
+    if jk and JOB_SKILLS[jk] and b.built ~= false then
+      groups[jk] = groups[jk] or {}
+      groups[jk][#groups[jk] + 1] = b
+    end
+  end
+  local map = {}
+  for jk, list in pairs(groups) do
+    table.sort(list, function(a, b) return locStr(a.location) < locStr(b.location) end)
+    for i, b in ipairs(list) do map[locStr(b.location)] = { jk = jk, num = i, count = #list } end
+  end
+  return map
+end
+
+-- "Builder 2" when there are several, else just "Builder".
+local function labelFor(map, loc, jk)
+  local info = map[locStr(loc)]
+  if info and info.count > 1 then return cap(jk) .. " " .. info.num end
+  return cap(jk)
+end
 
 function M.computeSuggestions(citizens, buildings, margins)
   local REPL = (margins and margins.replace) or skills.REPLACE_MARGIN
@@ -178,6 +205,10 @@ function M.computeSuggestions(citizens, buildings, margins)
     return a.gain > b.gain
   end)
   while #out > skills.MAX_SUGGESTIONS do table.remove(out) end
+
+  -- Attach a numbered building label to each suggestion (Builder 2, etc.).
+  local map = numberBuildings(buildings)
+  for _, s in ipairs(out) do s.jobLabel = labelFor(map, s.building.location, s.job) end
   return out
 end
 
@@ -195,8 +226,21 @@ function M.computeRoster(citizens, buildings, sugs)
     end
   end
 
-  local flat = {}
+  -- Job buildings, sorted by job type then number (Builder 1, Builder 2, ...).
+  local map = numberBuildings(buildings)
+  local ordered = {}
   for _, b in ipairs(buildings) do
+    local jk = b.type or jobKey(b.name)
+    if jk and JOB_SKILLS[jk] and b.built ~= false then ordered[#ordered + 1] = b end
+  end
+  table.sort(ordered, function(a, b)
+    local ia, ib = map[locStr(a.location)], map[locStr(b.location)]
+    if ia.jk ~= ib.jk then return ia.jk < ib.jk end
+    return ia.num < ib.num
+  end)
+
+  local flat = {}
+  for _, b in ipairs(ordered) do
     local jk = b.type or jobKey(b.name)
     local sk = jk and JOB_SKILLS[jk]
     if sk and b.built ~= false then
@@ -204,13 +248,14 @@ function M.computeRoster(citizens, buildings, sugs)
       local k = locStr(b.location)
       local workers = (type(b.citizens) == "table") and b.citizens or {}
       local maxS = maxSlotsFor(jk, b.level)
-      flat[#flat + 1] = { kind = "head", building = jk, filled = #workers, max = maxS }
+      flat[#flat + 1] = { kind = "head", building = jk, label = labelFor(map, b.location, jk),
+        filled = #workers, max = maxS }
       for _, w in ipairs(workers) do
         local rea = reassignAt[w.id]
         local rep = replaceAt[k]
         if rea then
           flat[#flat + 1] = { kind = "worker", name = w.name, status = "reassign",
-            to = rea.job, sug = rea }
+            to = rea.jobLabel or rea.job, sug = rea }
         elseif rep and rep.target and rep.target.id == w.id then
           flat[#flat + 1] = { kind = "worker", name = w.name, status = "replace",
             repl = rep.candidate.name, sug = rep }

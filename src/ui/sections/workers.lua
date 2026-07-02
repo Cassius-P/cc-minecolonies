@@ -23,10 +23,10 @@ local function drawRosterRow(rx, ry, colW, r)
   if r.kind == "gap" then
     return  -- blank spacer row between jobs
   elseif r.kind == "head" then
-    draw.put(rx, ry, trunc(string.format("%s (%d/%d)", cap(r.building), r.filled, r.max), colW), C.accent2, C.card)
+    draw.put(rx, ry, trunc(string.format("%s (%d/%d)", r.label or cap(r.building), r.filled, r.max), colW), C.accent2, C.card)
   elseif r.kind == "worker" then
     if r.status == "reassign" then
-      draw.put(rx, ry, trunc(" " .. r.name .. " \26 " .. cap(r.to), colW), C.note, C.card)
+      draw.put(rx, ry, trunc(" " .. r.name .. " \26 " .. tostring(r.to), colW), C.note, C.card)
     elseif r.status == "replace" then
       draw.put(rx, ry, trunc(" " .. r.name .. " \26 " .. r.repl, colW), C.warn, C.card)
     else
@@ -57,12 +57,13 @@ function M.draw(x, y, w, h, screen, d)
       if row > bottom then break end
       local s = sugs[i]
       local txt, col
+      local toLabel = s.jobLabel or cap(s.job)
       if s.kind == "assign" then
-        txt = ("assign %s \26 %s"):format(s.candidate.name, cap(s.job)); col = C.good
+        txt = ("assign %s \26 %s"):format(s.candidate.name, toLabel); col = C.good
       elseif s.kind == "reassign" then
-        txt = ("%s: %s \26 %s"):format(s.candidate.name, cap(s.from), cap(s.job)); col = C.note
+        txt = ("%s: %s \26 %s"):format(s.candidate.name, cap(s.from), toLabel); col = C.note
       else
-        txt = ("%s \26 %s (rep %s)"):format(s.candidate.name, cap(s.job), s.target.name); col = C.warn
+        txt = ("%s \26 %s (rep %s)"):format(s.candidate.name, toLabel, s.target.name); col = C.warn
       end
       -- Highlight + make the WHOLE row the clickable action.
       draw.fillRect(cx, row, cw, 1, C.cardTitle)

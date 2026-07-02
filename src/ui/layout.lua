@@ -296,7 +296,7 @@ local function applyModal(screen, s, data)
   local lines
   if s.kind == "assign" then
     lines = {
-      { "Job:      " .. s.job, C.text }, { "Building: " .. locStr(s.building.location), C.text },
+      { "Job:      " .. (s.jobLabel or s.job), C.text }, { "Building: " .. locStr(s.building.location), C.text },
       { "Hire:     " .. s.candidate.name .. " (" .. s.candidate.score .. ")", C.good },
       { "", C.text }, { "Manual steps:", C.accent2 },
       { " 1. Go to " .. locStr(s.building.location), C.dim },
@@ -306,7 +306,7 @@ local function applyModal(screen, s, data)
     lines = {
       { "Move:     " .. s.candidate.name, C.note },
       { "From job: " .. tostring(s.from), C.text },
-      { "To job:   " .. s.job .. " (fit " .. s.candidate.score .. ")", C.good },
+      { "To job:   " .. (s.jobLabel or s.job) .. " (fit " .. s.candidate.score .. ")", C.good },
       { "At:       " .. locStr(s.building.location), C.text },
       { "Manual steps:", C.accent2 },
       { " 1. Fire " .. s.candidate.name .. " from their " .. tostring(s.from) .. " hut", C.dim },
@@ -316,7 +316,7 @@ local function applyModal(screen, s, data)
     }
   else
     lines = {
-      { "Job:      " .. s.job, C.text }, { "Building: " .. locStr(s.building.location), C.text },
+      { "Job:      " .. (s.jobLabel or s.job), C.text }, { "Building: " .. locStr(s.building.location), C.text },
       { "Fire:     " .. s.target.name .. " (" .. s.target.score .. ")", C.bad },
       { "Hire:     " .. s.candidate.name .. " (" .. s.candidate.score .. ")", C.good },
       { "Manual steps:", C.accent2 }, { " 1. Go to " .. locStr(s.building.location), C.dim },
