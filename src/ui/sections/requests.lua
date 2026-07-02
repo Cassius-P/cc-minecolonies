@@ -10,7 +10,7 @@ local draw  = require("ui.draw")
 local theme = require("ui.theme")
 local C = theme.C
 
-local MAT_COLOR = colors.lightBlue   -- fixed colour for Domum material lines
+local MAT_COLOR = colors.purple   -- fixed colour for Domum material lines (not used by the legend)
 
 local M = {}
 M.title = "Open Requests"
