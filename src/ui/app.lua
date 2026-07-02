@@ -15,7 +15,6 @@ local perif    = require("common.peripherals")
 local settings = require("common.settings")
 local updater  = require("common.updater")
 local theme    = require("ui.theme")
-local draw     = require("ui.draw")
 local layout   = require("ui.layout")
 local terminal = require("ui.terminal")
 local api      = require("colony.api")
@@ -62,12 +61,10 @@ function M.start(cfgModule)
     local frame = basalt.createFrame()
     frame.set("term", mon)
     local W, H = mon.getSize()
-    local disp = frame:addDisplay({ x = 1, y = 1, width = W, height = H })
-    local win = disp:getWindow()
 
-    local s = { mon = mon, name = name, frame = frame, disp = disp, win = win,
-      W = W, H = H, buttons = {}, scroll = {}, modal = nil, edit = false,
-      layout = deepCopy(cfg.layout), enabled = {}, cfgIdx = cfgIdx }
+    local s = { mon = mon, name = name, frame = frame,
+      W = W, H = H, scroll = {}, modal = nil, edit = false,
+      layoutTree = deepCopy(cfg.layout), enabled = {}, geometry = nil, cfgIdx = cfgIdx }
     if type(cfg.enabled) == "table" then
       for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end
     end
@@ -108,10 +105,12 @@ function M.start(cfgModule)
     local s = screens[i]; if not s then return end
     s.cfgIdx = ((s.cfgIdx or 1) % #config.screens) + 1
     local cfg = config.screens[s.cfgIdx]
-    s.layout = deepCopy(cfg.layout)
+    s.layoutTree = deepCopy(cfg.layout)
     s.enabled = {}
     if type(cfg.enabled) == "table" then for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end end
+    s.geometry = layout.defaultGeometry(s)
     s.scroll = {}; s.modal = nil
+    layout.applyGeometry(s)
     settings.save(config, screens)
   end
 
@@ -136,30 +135,22 @@ function M.start(cfgModule)
     mkScreen(name, config.screens[lastIdx], lastIdx)
   end
 
-  -- Per-screen click + scroll (on the Display, which sits at 1,1 so element
-  -- coords == monitor coords, matching our absolute hitboxes).
-  for _, s in ipairs(screens) do
-    s.disp:onClick(function(_, _btn, x, y)
-      draw.setTarget(s.win, s.W, s.H, s.buttons)
-      local action = draw.hit(x, y)
-      if action then
-        action()
-        if state.quit then basalt.stop(); return true end
-        redrawAll()
-      end
-      return true
-    end)
-  end
-
   -- Computer terminal: native Basalt tabbed UI on the main frame.
   local mainFrame = basalt.getMainFrame()
   termUI = terminal.build(mainFrame, { version = VERSION, config = config })
 
   ----------------------------------------------------------------------------
-  -- Settings, theme, first scan
+  -- Settings, then build the Basalt section frames, then theme + first scan
   ----------------------------------------------------------------------------
   settings.load(config, screens, theme.isTheme)
   state.theme = config.theme
+
+  local env = {
+    state = state, hooks = hooks, redraw = redrawAll, reassign = reassignScreen,
+    stop = function() state.quit = true; basalt.stop() end,
+  }
+  for _, s in ipairs(screens) do layout.buildScreen(s, env) end
+
   theme.apply(config.theme, screens, config)
   rescan()
   redrawAll()

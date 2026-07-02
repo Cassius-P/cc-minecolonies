@@ -58,9 +58,11 @@ Everything is touch-driven on the monitor, plus a few keys on the computer.
 |--------|------|
 | `THEME` | Switch color theme (applies to every monitor) |
 | `SECTIONS` | Show/hide sections on this monitor |
-| `EDIT` | Rearrange: `- +` resize a section, arrows move it up/down |
+| `EDIT` | Rearrange: **drag a section's top bar** to move it anywhere; use its `-W +W -H +H` buttons to resize |
 
-Changes are saved automatically, per monitor, and survive updates.
+In EDIT mode each section becomes a draggable panel — grab its top row and drop
+it where you want (any direction), and resize with the buttons on its bottom
+row. Turn EDIT off to save. Changes are per monitor and survive updates.
 
 **Keys on the computer screen:**
 
