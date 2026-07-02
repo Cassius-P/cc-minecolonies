@@ -28,6 +28,17 @@ end
 
 local function trunc(s, n) return #s > n and s:sub(1, math.max(0, n)) or s end
 
+-- Full building name (NOT jobKey, which would keep only the last word, turning
+-- "Town Hall" -> "Hall" and "Courier's Hut" -> "Hut"). Drop a namespace prefix,
+-- normalise separators, capitalise each word.
+local function cleanName(s)
+  s = tostring(s or "?")
+  s = s:match("([^:]+)$") or s      -- strip "namespace:" prefix if present
+  s = s:gsub("[_/]", " "):gsub("%s+", " ")
+  s = s:gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end)
+  return s
+end
+
 function M.draw(x, y, w, h, screen, d)
   local list = d.orders or {}
   local claimed = 0
@@ -71,7 +82,7 @@ function M.draw(x, y, w, h, screen, d)
       draw.put(cx, ry, trunc(("%s (%d)"):format(r.verb, r.n), cw), r.col, C.card)
     else
       local o = r.o
-      local name = cap(util.jobKey(o.buildingName or o.structureName or o.name or "?") or "?")
+      local name = cleanName(o.buildingName or o.structureName or o.name or "?")
       local lvl = o.targetLevel and ("L" .. tostring(o.targetLevel)) or ""
       local loc = o.location or o.pos or o.buildingLocation or o.workOrderLocation
       local coords = (type(loc) == "table") and util.locStr(loc) or ""
