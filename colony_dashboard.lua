@@ -824,15 +824,8 @@ end
 --* HEADER / FOOTER / OVERLAYS
 ----------------------------------------------------------------------------
 
-local function drawHeader()
-  local d = state.data
-  fillRect(1, 1, W, 1, C.cardTitle)
-  put(2, 1, "MINECOLONIES DASHBOARD", C.titleText, C.cardTitle)
-  local right = string.format("%s #%s  %s  %02ds", tostring(d.name), tostring(d.id), CONFIG.theme, state.countdown)
-  put(W - #right - 1, 1, right, C.dim, C.cardTitle)
-end
-
 local function drawFooter()
+  local d = state.data
   fillRect(1, H, W, 1, C.cardTitle)
   local x = 2
   x = button(x, H, "REFRESH", C.btnOk, C.btnText, function() state.needScan = true end) + 1
@@ -842,7 +835,10 @@ local function drawFooter()
   end) + 1
   x = button(x, H, "SECTIONS", C.btn, C.btnText, function() state.modal = { kind = "sections" } end) + 1
   x = button(x, H, "QUIT", C.btnBad, colors.black, function() state.quit = true end) + 2
-  if state.msg ~= "" then put(x, H, state.msg, C.dim, C.cardTitle) end
+  -- colony/theme/countdown live on the right of the footer (header removed)
+  local right = string.format("%s #%s  %s  %02ds", tostring(d.name), tostring(d.id), CONFIG.theme, state.countdown)
+  put(W - #right - 1, H, right, C.dim, C.cardTitle)
+  if state.msg ~= "" and x < W - #right - 2 then put(x, H, state.msg, C.dim, C.cardTitle) end
 end
 
 local function tryApiAssign(_) return false, "API read-only; hire manually." end
@@ -916,8 +912,7 @@ local function redraw()
   monitor.clear()
   clearButtons()
   if not state.data then put(2, 2, "Scanning...", C.dim); return end
-  drawHeader()
-  layoutNode(CONFIG.layout, 1, 2, W, H - 2)
+  layoutNode(CONFIG.layout, 1, 1, W, H - 1)
   drawFooter()
   if state.modal then
     clearButtons() -- overlay captures all clicks
