@@ -73,11 +73,17 @@ function M.draw(x, y, w, h, screen, d)
       local o = r.o
       local name = cap(util.jobKey(o.buildingName or o.structureName or o.name or "?") or "?")
       local lvl = o.targetLevel and ("L" .. tostring(o.targetLevel)) or ""
+      local loc = o.location or o.pos or o.buildingLocation or o.workOrderLocation
+      local coords = (type(loc) == "table") and util.locStr(loc) or ""
       draw.put(cx + 1, ry, "\7", o.isClaimed and C.good or C.warn, C.card)
+
       local nameX = cx + 3
-      local room = (cx + cw - #lvl - 1) - nameX
-      draw.put(nameX, ry, trunc(name, room), C.text, C.card)
-      if lvl ~= "" then draw.put(cx + cw - #lvl, ry, lvl, C.dim, C.card) end
+      local rightEdge = cx + cw
+      local lvlX = (lvl ~= "") and (rightEdge - #lvl) or rightEdge
+      local coordsX = (coords ~= "") and (lvlX - 1 - #coords) or lvlX
+      draw.put(nameX, ry, trunc(name, math.max(0, coordsX - 1 - nameX)), C.text, C.card)
+      if coords ~= "" then draw.put(coordsX, ry, coords, C.accent2, C.card) end  -- coords in a distinct colour
+      if lvl ~= "" then draw.put(lvlX, ry, lvl, C.dim, C.card) end
     end
   end
 end

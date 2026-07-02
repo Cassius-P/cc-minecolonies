@@ -84,6 +84,7 @@ function M.categorize(rawRequests, log)
         name = req.name, target = req.target or "", count = req.count,
         item_displayName = trimLead(req.items[1].displayName),
         item_name = req.items[1].name, desc = req.desc or "",
+        fingerprint = req.items[1].fingerprint,  -- AP item id: exact match for any item
         provided = 0, isCraftable = false, equipment = isEq,
         displayColor = colors.white, level = "",
       }
@@ -103,7 +104,6 @@ function M.categorize(rawRequests, log)
         local dbase, dmats = domumInfo(req.items[1])  -- nil for non-domum
         base.displayLabel = dbase
         base.materials = dmats
-        if dbase then base.fingerprint = req.items[1].fingerprint end  -- exact-match id
         if string.find(base.target, "Builder") then
           builder[#builder + 1] = base
         else
