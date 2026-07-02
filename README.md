@@ -13,7 +13,12 @@ applied with `setPaletteColour`. `colors.brown` is repurposed as the dark card b
 Configurable all-in-one dashboard. Supersedes `colony_advisor.lua` +
 `ccxm_requests.lua` by merging both into one screen.
 
-- **Flexbox layout** (`CONFIG.layout`): a tree of `row`/`col` containers and
+- **Multi-monitor** (`CONFIG.screens`): one entry per monitor, each with its own
+  layout + section set, so one monitor shows an overview while another shows
+  logistics. Screens bind to monitors in detection order (or pin with
+  `monitor="<name>"`); a single monitor uses `screens[1]` (keep it complete),
+  extra monitors clone the last screen.
+- **Flexbox layout** (per screen `layout`): a tree of `row`/`col` containers and
   section leaves. Each node takes `flex` (main-axis weight), `min`, `max`
   (main-axis clamp in cells); the cross axis fills. Reorder children to move a
   section, change `flex`/`min`/`max` to resize.
@@ -21,6 +26,8 @@ Configurable all-in-one dashboard. Supersedes `colony_advisor.lua` +
   button; disabled sections drop out and their space is redistributed.
 - **Themes**: all four cc-mek-scada palettes (`deepslate`, `smooth_stone`,
   `sandstone`, `basalt`), set in `CONFIG.theme` or cycled with the `THEME` button.
+  Theme is global — cycling it repaints every monitor. Section visibility is
+  per-monitor; both persist to the settings file (keyed by monitor name).
 - **Sections**: status, workforce, suggestions, orders, requests, legend.
 - **Requests section = CCxM auto-fulfill**: with an ME/RS bridge + inventory,
   colony requests auto-export to the warehouse and missing craftables queue.

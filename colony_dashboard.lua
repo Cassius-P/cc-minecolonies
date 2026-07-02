@@ -10,10 +10,20 @@
   ---------------------------------------------------------------------------
   CONFIGURING THE DASHBOARD  (edit the CONFIG block below)
   ---------------------------------------------------------------------------
-  * CONFIG.theme        one of THEME_ORDER (cc-mek-scada palettes)
-  * CONFIG.enabled      per-section on/off (also toggleable at runtime)
-  * CONFIG.layout       a flexbox-like tree. Two node kinds:
+  * CONFIG.theme        GLOBAL, shared by every monitor. One of THEME_ORDER
+                        (cc-mek-scada palettes). The THEME button cycles it on
+                        all monitors at once.
+  * CONFIG.screens      MULTI-MONITOR: a list of screens, one per monitor. Each
+                        screen has its OWN layout + section visibility, so one
+                        monitor can show X while another shows Y. Screens bind
+                        to monitors in order of detection, or set `monitor=` to
+                        a peripheral name to pin one. With a single monitor only
+                        screens[1] is used, so keep it self-sufficient. Extra
+                        monitors beyond the list clone the last screen.
 
+      screen = { monitor = "<name>"?, layout = <tree>, enabled = { id=bool } }
+
+    Each layout is a flexbox-like tree with two node kinds:
       container = { dir = "row" | "col", flex=, min=, max=, <children...> }
       leaf      = { section = "<id>", flex=, min=, max= }
 
@@ -25,7 +35,11 @@
 
     Move a section  -> reorder it among its siblings.
     Resize          -> change its flex / min / max.
-    Enable/disable  -> CONFIG.enabled[id] = true|false (or the SECTIONS button).
+    Enable/disable  -> screen.enabled[id] = true|false (or the SECTIONS button,
+                       which toggles only the touched monitor).
+
+  Section visibility is per-monitor and the global theme are BOTH persisted to
+  the settings file, keyed by monitor name.
 
   Available section ids: status, workforce, suggestions, orders, requests, legend
 
@@ -55,30 +69,38 @@
 ----------------------------------------------------------------------------
 
 local CONFIG = {
-  theme = "deepslate",          -- deepslate | smooth_stone | sandstone | basalt
+  theme = "deepslate",          -- GLOBAL: deepslate | smooth_stone | sandstone | basalt
   refreshSeconds = 5,
 
-  enabled = {
-    status      = true,
-    workforce   = true,
-    suggestions = true,
-    orders      = true,
-    requests    = true,
-    legend      = true,
-  },
-
-  -- Flexbox layout tree (see header docs).
-  layout = {
-    dir = "row",
-    { dir = "col", flex = 38, min = 20,
-      { section = "status",    flex = 8, min = 7, max = 9 },
-      { section = "workforce", flex = 7, min = 6, max = 8 },
-      { section = "orders",    flex = 10, min = 4 },
-      { section = "legend",    flex = 9, min = 4 },
+  -- One entry per monitor (bound in detection order, or pin with `monitor=`).
+  -- screens[1] must stand alone for single-monitor setups.
+  screens = {
+    { -- monitor 1: full overview (self-sufficient)
+      -- monitor = "monitor_0",
+      enabled = { status = true, workforce = true, suggestions = true,
+        orders = true, requests = true, legend = true },
+      layout = {
+        dir = "row",
+        { dir = "col", flex = 38, min = 20,
+          { section = "status",    flex = 8, min = 7, max = 9 },
+          { section = "workforce", flex = 7, min = 6, max = 8 },
+          { section = "orders",    flex = 10, min = 4 },
+          { section = "legend",    flex = 9, min = 4 },
+        },
+        { dir = "col", flex = 62, min = 24,
+          { section = "suggestions", flex = 50, min = 6 },
+          { section = "requests",    flex = 50, min = 6 },
+        },
+      },
     },
-    { dir = "col", flex = 62, min = 24,
-      { section = "suggestions", flex = 50, min = 6 },
-      { section = "requests",    flex = 50, min = 6 },
+    { -- monitor 2 (if present): logistics focus
+      enabled = { requests = true, orders = true, legend = true },
+      layout = {
+        dir = "col",
+        { section = "requests", flex = 70, min = 6 },
+        { section = "orders",   flex = 22, min = 4 },
+        { section = "legend",   flex = 8,  min = 3 },
+      },
     },
   },
 
@@ -236,12 +258,9 @@ local C = {}   -- active semantic colors, filled by applyTheme
 --* PERIPHERALS
 ----------------------------------------------------------------------------
 
-local monitor = peripheral.find("monitor")
-if not monitor then error("No monitor found", 0) end
 local colony = peripheral.find("colony_integrator")
 if not colony then error("No colony_integrator found (adjacent or via wired modem)", 0) end
 if not colony.isInColony() then error("Integrator is not inside a colony", 0) end
-monitor.setTextScale(0.5)
 
 local bridge, storage    -- refreshed each scan (optional)
 
@@ -254,6 +273,58 @@ local function findStorage()
     if peripheral.hasType(side, "inventory") then return side end
   end
   return nil
+end
+
+-- Multi-monitor: each Screen wraps one monitor with its own layout, section
+-- visibility, button hitboxes, scroll offsets and modal. Theme/palette + colony
+-- data are shared globally.
+local screens, screenByName = {}, {}
+local ACTIVE                       -- screen currently being drawn / touched
+local monitor, W, H, buttons       -- active-target pointers (set by activate)
+
+local function activate(s)
+  ACTIVE = s
+  monitor, W, H, buttons = s.mon, s.W, s.H, s.buttons
+end
+
+local function buildScreens()
+  local monNames = {}
+  for _, n in ipairs(peripheral.getNames()) do
+    if peripheral.getType(n) == "monitor" then monNames[#monNames + 1] = n end
+  end
+  if #monNames == 0 then error("No monitor found", 0) end
+
+  local reserved = {}
+  for _, sc in ipairs(CONFIG.screens) do
+    if sc.monitor and peripheral.getType(sc.monitor) == "monitor" then reserved[sc.monitor] = true end
+  end
+  local pool, pi = {}, 1
+  for _, n in ipairs(monNames) do if not reserved[n] then pool[#pool + 1] = n end end
+
+  local function mk(name, sc)
+    if screenByName[name] then return end
+    local mon = peripheral.wrap(name)
+    mon.setTextScale(sc.textScale or 0.5)
+    local en = {}
+    if type(sc.enabled) == "table" then for k, v in pairs(sc.enabled) do en[k] = v and true or false end end
+    local s = { mon = mon, name = name, buttons = {}, scroll = {}, modal = nil,
+      layout = sc.layout, enabled = en }
+    s.W, s.H = mon.getSize()
+    screens[#screens + 1] = s
+    screenByName[name] = s
+  end
+
+  for _, sc in ipairs(CONFIG.screens) do
+    local name = sc.monitor
+    if not (name and peripheral.getType(name) == "monitor") then name = pool[pi]; pi = pi + 1 end
+    if name then mk(name, sc) end
+  end
+  -- extra monitors beyond the configured screens mirror the last screen config
+  local lastCfg = CONFIG.screens[#CONFIG.screens]
+  while pi <= #pool do
+    local name = pool[pi]; pi = pi + 1
+    if lastCfg then mk(name, lastCfg) end
+  end
 end
 
 ----------------------------------------------------------------------------
@@ -277,16 +348,18 @@ end
 --* THEME APPLY
 ----------------------------------------------------------------------------
 
+-- Theme is global: set the semantic map once, apply the palette to EVERY monitor.
 local function applyTheme(name)
-  local t = THEMES[name] or THEMES.deepslate
   CONFIG.theme = THEMES[name] and name or "deepslate"
-  for c, hex in pairs(t.palette) do monitor.setPaletteColour(c, hex) end
+  local t = THEMES[CONFIG.theme]
   for k, v in pairs(t.sem) do C[k] = v end
+  for _, s in ipairs(screens) do
+    for c, hex in pairs(t.palette) do s.mon.setPaletteColour(c, hex) end
+  end
 end
 local function restorePalette()
-  for i = 0, 15 do
-    local c = 2 ^ i
-    monitor.setPaletteColour(c, term.nativePaletteColour(c))
+  for _, s in ipairs(screens) do
+    for i = 0, 15 do local c = 2 ^ i; s.mon.setPaletteColour(c, term.nativePaletteColour(c)) end
   end
 end
 
@@ -294,10 +367,7 @@ end
 --* DRAW PRIMITIVES
 ----------------------------------------------------------------------------
 
-local W, H = monitor.getSize()
-local buttons = {}
-
-local function clearButtons() buttons = {} end
+local function clearButtons() buttons = {}; if ACTIVE then ACTIVE.buttons = buttons end end
 local function addButton(x1, y1, x2, y2, action)
   buttons[#buttons + 1] = { x1 = x1, y1 = y1, x2 = x2, y2 = y2, action = action }
 end
@@ -682,7 +752,8 @@ end
 --* STATE
 ----------------------------------------------------------------------------
 
--- Persisted settings (theme + section visibility) survive script updates.
+-- Persisted settings: GLOBAL theme + PER-MONITOR section visibility (keyed by
+-- monitor name). Survives script updates. Requires screens to be built first.
 local SETTINGS_FILE = "colony_dashboard.settings"
 local function loadSettings()
   if not fs.exists(SETTINGS_FILE) then return end
@@ -691,26 +762,28 @@ local function loadSettings()
   local ok, t = pcall(textutils.unserialize, raw)
   if not (ok and type(t) == "table") then return end
   if type(t.theme) == "string" and THEMES[t.theme] then CONFIG.theme = t.theme end
-  if type(t.enabled) == "table" then
-    for id in pairs(CONFIG.enabled) do
-      if t.enabled[id] ~= nil then CONFIG.enabled[id] = t.enabled[id] and true or false end
+  if type(t.screens) == "table" then
+    for _, s in ipairs(screens) do
+      local sc = t.screens[s.name]
+      if type(sc) == "table" and type(sc.enabled) == "table" then
+        local en = {}
+        for k, v in pairs(sc.enabled) do en[k] = v and true or false end
+        s.enabled = en
+      end
     end
   end
 end
 local function saveSettings()
+  local out = { theme = CONFIG.theme, screens = {} }
+  for _, s in ipairs(screens) do out.screens[s.name] = { enabled = s.enabled } end
   local f = fs.open(SETTINGS_FILE, "w"); if not f then return end
-  f.write(textutils.serialize({ theme = CONFIG.theme, enabled = CONFIG.enabled }))
-  f.close()
+  f.write(textutils.serialize(out)); f.close()
 end
 
 local state = {
   data = nil, msg = "", countdown = CONFIG.refreshSeconds,
-  quit = false, needScan = false, modal = nil,
-  scroll = {},            -- per-section scroll offsets
-  themeIdx = 1,
+  quit = false, needScan = false, themeIdx = 1,
 }
-loadSettings()
-for i, n in ipairs(THEME_ORDER) do if n == CONFIG.theme then state.themeIdx = i end end
 
 ----------------------------------------------------------------------------
 --* SECTIONS
@@ -752,14 +825,14 @@ local function secSuggestions(x, y, w, h)
   local d = state.data
   local list = d.suggestions
   local cx, cy, cw, ch = card(x, y, w, h, string.format("WORKERS (%d)", #list))
-  state.scroll = scrollArrows("suggestions", x, y, w, #list, ch, state.scroll)
+  ACTIVE.scroll = scrollArrows("suggestions", x, y, w, #list, ch, ACTIVE.scroll)
   if #list == 0 then put(cx, cy, "All jobs optimally staffed.", C.good, C.card); return end
-  local off = state.scroll.suggestions or 0
+  local off = ACTIVE.scroll.suggestions or 0
   for i = 1, ch do
     local s = list[i + off]
     if not s then break end
     local ry = cy + i - 1
-    button(cx, ry, "DO", C.btn, C.btnText, function() state.modal = { kind = "apply", sug = s } end)
+    button(cx, ry, "DO", C.btn, C.btnText, function() ACTIVE.modal = { kind = "apply", sug = s } end)
     local tx = cx + 5
     if s.kind == "assign" then
       -- worker should move into an open job
@@ -775,9 +848,9 @@ local function secOrders(x, y, w, h)
   local d = state.data
   local list = d.orders
   local cx, cy, cw, ch = card(x, y, w, h, string.format("WORK ORDERS (%d)", #list))
-  state.scroll = scrollArrows("orders", x, y, w, #list, ch, state.scroll)
+  ACTIVE.scroll = scrollArrows("orders", x, y, w, #list, ch, ACTIVE.scroll)
   if #list == 0 then put(cx, cy, "None queued.", C.dim, C.card); return end
-  local off = state.scroll.orders or 0
+  local off = ACTIVE.scroll.orders or 0
   for i = 1, ch do
     local o = list[i + off]
     if not o then break end
@@ -797,9 +870,9 @@ local function secRequests(x, y, w, h)
   local cx, cy, cw, ch = card(x, y, w, h, string.format("OPEN REQUESTS (%d) %s", #list, d.reqMode))
   -- recolor the mode word
   put(x + 1 + #string.format("OPEN REQUESTS (%d) ", #list), y, d.reqMode, modeCol, C.cardTitle)
-  state.scroll = scrollArrows("requests", x, y, w, #list, ch, state.scroll)
+  ACTIVE.scroll = scrollArrows("requests", x, y, w, #list, ch, ACTIVE.scroll)
   if #list == 0 then put(cx, cy, "No open requests.", C.good, C.card); return end
-  local off = state.scroll.requests or 0
+  local off = ACTIVE.scroll.requests or 0
   for i = 1, ch do
     local it = list[i + off]
     if not it then break end
@@ -843,7 +916,7 @@ local SECTION_ORDER = { "status", "workforce", "suggestions", "orders", "request
 
 local GAP = 1
 
-local function isEnabled(id) return CONFIG.enabled[id] ~= false end
+local function isEnabled(id) return ACTIVE.enabled[id] ~= false end
 
 local function countVisible(node)
   if node.section then return isEnabled(node.section) and 1 or 0 end
@@ -909,10 +982,10 @@ local function drawFooter()
   x = button(x, H, "REFRESH", C.btnOk, C.btnText, function() state.needScan = true end) + 1
   x = button(x, H, "THEME", C.accent, colors.black, function()
     state.themeIdx = (state.themeIdx % #THEME_ORDER) + 1
-    applyTheme(THEME_ORDER[state.themeIdx])
+    applyTheme(THEME_ORDER[state.themeIdx])   -- global: re-palettes all monitors
     saveSettings()
   end) + 1
-  x = button(x, H, "SECTIONS", C.btn, C.btnText, function() state.modal = { kind = "sections" } end) + 2
+  x = button(x, H, "SECTIONS", C.btn, C.btnText, function() ACTIVE.modal = { kind = "sections" } end) + 2
   -- colony/theme/countdown live on the right of the footer (header removed)
   local right = string.format("%s #%s  %s  %02ds", tostring(d.name), tostring(d.id), CONFIG.theme, state.countdown)
   put(W - #right - 1, H, right, C.dim, C.cardTitle)
@@ -956,9 +1029,9 @@ local function drawApplyModal(s)
   local bx = cx
   bx = button(bx, my + mh - 1, "HANDLED", C.btnOk, C.btnText, function()
     for i, x in ipairs(state.data.suggestions) do if x == s then table.remove(state.data.suggestions, i); break end end
-    state.modal = nil
+    ACTIVE.modal = nil
   end) + 1
-  button(bx, my + mh - 1, "BACK", colors.lightGray, colors.black, function() state.modal = nil end)
+  button(bx, my + mh - 1, "BACK", colors.lightGray, colors.black, function() ACTIVE.modal = nil end)
 end
 
 local function drawSectionsModal()
@@ -975,28 +1048,32 @@ local function drawSectionsModal()
     local box = on and "[x]" or "[ ]"
     put(cx, ry, box, on and C.good or C.dim, C.card)
     put(cx + 4, ry, SECTIONS[id].title, on and C.text or C.dim, C.card)
-    addButton(cx, ry, cx + mw - 3, ry, function() CONFIG.enabled[id] = not on; saveSettings() end)
+    addButton(cx, ry, cx + mw - 3, ry, function() ACTIVE.enabled[id] = not on; saveSettings() end)
   end
-  button(cx, my + mh - 1, "CLOSE", C.btnOk, C.btnText, function() state.modal = nil end)
+  button(cx, my + mh - 1, "CLOSE", C.btnOk, C.btnText, function() ACTIVE.modal = nil end)
 end
 
 ----------------------------------------------------------------------------
 --* REDRAW
 ----------------------------------------------------------------------------
 
-local function redraw()
-  W, H = monitor.getSize()
+local function drawScreen(s)
+  activate(s)
+  s.W, s.H = s.mon.getSize(); W, H = s.W, s.H
   monitor.setBackgroundColor(C.screen)
   monitor.clear()
   clearButtons()
   if not state.data then put(2, 2, "Scanning...", C.dim); return end
-  layoutNode(CONFIG.layout, 1, 1, W, H - 1)
+  layoutNode(s.layout, 1, 1, W, H - 1)
   drawFooter()
-  if state.modal then
+  if ACTIVE.modal then
     clearButtons() -- overlay captures all clicks
-    if state.modal.kind == "apply" then drawApplyModal(state.modal.sug)
-    elseif state.modal.kind == "sections" then drawSectionsModal() end
+    if ACTIVE.modal.kind == "apply" then drawApplyModal(ACTIVE.modal.sug)
+    elseif ACTIVE.modal.kind == "sections" then drawSectionsModal() end
   end
+end
+local function redrawAll()
+  for _, s in ipairs(screens) do drawScreen(s) end
 end
 
 ----------------------------------------------------------------------------
@@ -1015,33 +1092,46 @@ local function rescan()
   state.countdown = CONFIG.refreshSeconds
 end
 
+buildScreens()
+loadSettings()
+for i, n in ipairs(THEME_ORDER) do if n == CONFIG.theme then state.themeIdx = i end end
 applyTheme(CONFIG.theme)
 rescan()
-redraw()
+redrawAll()
 
 local tick = os.startTimer(1)
 while true do
   local ev = { os.pullEvent() }
   local e = ev[1]
   if e == "monitor_touch" then
-    local action = hit(ev[3], ev[4])
-    if action then action() end
-    if state.quit then break end
-    if state.needScan then rescan() end
-    redraw()
+    local s = screenByName[ev[2]]
+    if s then
+      activate(s)
+      local action = hit(ev[3], ev[4])
+      if action then action() end
+      if state.quit then break end
+      if state.needScan then rescan() end
+      redrawAll()
+    end
   elseif e == "timer" and ev[2] == tick then
     state.countdown = state.countdown - 1
-    if state.countdown <= 0 and not state.modal then rescan() end
-    redraw()
+    local anyModal = false
+    for _, s in ipairs(screens) do if s.modal then anyModal = true; break end end
+    if state.countdown <= 0 and not anyModal then rescan() end
+    redrawAll()
     tick = os.startTimer(1)
   elseif e == "char" and ev[2] == "q" then
     break
-  elseif e == "monitor_resize" or e == "term_resize" then
-    redraw()
+  elseif e == "monitor_resize" then
+    local s = screenByName[ev[2]]
+    if s then s.W, s.H = s.mon.getSize() end
+    redrawAll()
   end
 end
 
 restorePalette()
-monitor.setBackgroundColor(colors.black); monitor.clear(); monitor.setCursorPos(1, 1)
+for _, s in ipairs(screens) do
+  s.mon.setBackgroundColor(colors.black); s.mon.clear(); s.mon.setCursorPos(1, 1)
+end
 term.clear(); term.setCursorPos(1, 1)
 print("colony_dashboard stopped.")
