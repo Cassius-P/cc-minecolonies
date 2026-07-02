@@ -143,15 +143,21 @@ function M.start(cfgModule)
   local mainFrame = basalt.getMainFrame()
   termUI = terminal.build(mainFrame, {
     version = installedVersion, config = config,
-    onUpdate = function()
-      if loading then return end
-      loading = true
-      if loader then loader.show("Updating from GitHub...") end
-      basalt.schedule(function()
-        sleep(0.3)                 -- let the loader paint first
-        shell.run("/update.lua")   -- fetch + reinstall, preserving config
-        os.reboot()
-      end)
+    onUpdateButton = function()
+      if state.update and state.update.available then
+        -- Install: run the updater behind the loader, then reboot.
+        if loading then return end
+        loading = true
+        if loader then loader.show("Updating from GitHub...") end
+        basalt.schedule(function()
+          sleep(0.3)
+          shell.run("/update.lua", "force")  -- already confirmed newer; just install
+          os.reboot()
+        end)
+      else
+        -- Check: manual version check.
+        basalt.schedule(function() checkUpdate(); redrawAll() end)
+      end
     end,
   })
 

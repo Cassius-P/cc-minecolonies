@@ -48,12 +48,13 @@ function M.build(mainFrame, ctx)
   -- Update ----------------------------------------------------------------
   local ut = tabs:newTab("Update")
   ui.lUpd = ut:addLabel({ x = 2, y = 2, width = tw - 2 })
-  ut:addButton({ x = 2, y = 4, width = 22, height = 1 })
-    :setText("Install / update now")
-    :setBackground(colors.green):setForeground(colors.black)
-    :onClick(function() if ctx.onUpdate then ctx.onUpdate() end end)
+  ui.updBtn = ut:addButton({ x = 2, y = 4, width = 22, height = 1 })
+    :setText("Check for update")
+    :setBackground(colors.blue):setForeground(colors.white)
+    :onClick(function() if ctx.onUpdateButton then ctx.onUpdateButton() end end)
   ut:addLabel({ x = 2, y = 6, width = tw - 2 })
-    :setText("Pulls the latest from GitHub and reboots."):setForeground(colors.lightGray)
+    :setText("Check looks for a new version; Install pulls it and reboots.")
+    :setForeground(colors.lightGray)
   ut:addLabel({ x = 2, y = 7, width = tw - 2 })
     :setText("(or type 'update' at the shell)"):setForeground(colors.gray)
 
@@ -91,10 +92,13 @@ function M._update(ui, ctx, state, screens)
   local up = state.update
   if up and up.available then
     ui.lUpd:setText(("* Update available: v%s -> v%s"):format(up.localv, up.remote)):setForeground(colors.orange)
+    ui.updBtn:setText("Install update"):setBackground(colors.green):setForeground(colors.black)
   elseif up then
     ui.lUpd:setText(("Up to date (v%s)"):format(up.remote or ctx.version)):setForeground(colors.green)
+    ui.updBtn:setText("Check for update"):setBackground(colors.blue):setForeground(colors.white)
   else
-    ui.lUpd:setText("Checking for updates..."):setForeground(colors.lightGray)
+    ui.lUpd:setText("Version " .. ctx.version .. " - not checked yet"):setForeground(colors.lightGray)
+    ui.updBtn:setText("Check for update"):setBackground(colors.blue):setForeground(colors.white)
   end
 end
 
