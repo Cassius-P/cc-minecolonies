@@ -58,11 +58,18 @@ Everything is touch-driven on the monitor, plus a few keys on the computer.
 |--------|------|
 | `THEME` | Switch color theme (applies to every monitor) |
 | `SECTIONS` | Show/hide sections on this monitor |
-| `EDIT` | Rearrange: **drag a section's top bar** to move it anywhere; use its `-W +W -H +H` buttons to resize |
+| `EDIT` | Rearrange: each section shows `▲ ▼` (move up/down in its column) and `▶`/`◀` (send to the other column) |
 
-In EDIT mode each section becomes a draggable panel — grab its top row and drop
-it where you want (any direction), and resize with the buttons on its bottom
-row. Turn EDIT off to save. Changes are per monitor and survive updates.
+The screen is **two columns**. A column's width is shared by however many
+columns have sections (empty a column and the other fills the whole screen);
+within a column, each section splits the height evenly — so size follows how
+many sections are where, with nothing to resize by hand. In EDIT mode use a
+section's `▲ ▼` to reorder it and `▶`/`◀` to move it between columns (that's how
+you fill a second column, or collapse to one). Changes save per monitor and
+survive updates.
+
+> Note: Minecraft monitors only report taps — no click-drag and no scroll wheel
+> — so moving is done with these buttons rather than drag-and-drop.
 
 **Keys on the computer screen:**
 
@@ -93,7 +100,8 @@ Open `config.lua` on the computer (it's kept safe across updates). Common tweaks
 
 - `theme` — starting color theme.
 - `refreshSeconds` — how often to re-scan.
-- `screens` — which sections each monitor shows and how they're arranged.
+- `screens` — per monitor: `enabled` (which sections show) and `columns` (the
+  two ordered lists of sections). Extra monitors reuse the last screen's layout.
 - `autofulfill` — the storage rules above.
 - `peripherals` — usually leave blank; set a device's network name here only if
   you have several and want to pick a specific one. The computer screen lists
@@ -108,8 +116,10 @@ Open `config.lua` on the computer (it's kept safe across updates). Common tweaks
 - **Nothing auto-fills** — check the Open Requests mode; `no bridge` means the
   bridge or warehouse isn't detected. The computer screen's peripheral list shows
   what it can see.
-- **A section looks squished** — the monitor is small for that layout; use
-  `SECTIONS` to hide some, or `EDIT` to resize. Sections shrink but never vanish.
+- **A section looks cramped** — it shares its column's height with the other
+  sections there; hide some with `SECTIONS`, or move sections to the other
+  column in `EDIT` so each has more room. Long lists scroll (tap the ▲▼ in the
+  section's title bar; the mouse wheel also works on the computer screen).
 
 ## Notes
 

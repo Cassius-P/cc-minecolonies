@@ -64,7 +64,7 @@ function M.start(cfgModule)
 
     local s = { mon = mon, name = name, frame = frame,
       W = W, H = H, scroll = {}, modal = nil, edit = false,
-      layoutTree = deepCopy(cfg.layout), enabled = {}, geometry = nil, cfgIdx = cfgIdx }
+      columns = deepCopy(cfg.columns), enabled = {}, cfgIdx = cfgIdx }
     if type(cfg.enabled) == "table" then
       for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end
     end
@@ -105,12 +105,11 @@ function M.start(cfgModule)
     local s = screens[i]; if not s then return end
     s.cfgIdx = ((s.cfgIdx or 1) % #config.screens) + 1
     local cfg = config.screens[s.cfgIdx]
-    s.layoutTree = deepCopy(cfg.layout)
+    s.columns = deepCopy(cfg.columns)
     s.enabled = {}
     if type(cfg.enabled) == "table" then for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end end
-    s.geometry = layout.defaultGeometry(s)
     s.scroll = {}; s.modal = nil
-    layout.applyGeometry(s)
+    layout.applyRects(s)
     settings.save(config, screens)
   end
 

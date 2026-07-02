@@ -26,11 +26,9 @@ function M.load(config, screens, isTheme)
     if type(sc) == "table" then
       if type(sc.cfgIdx) == "number" and config.screens[sc.cfgIdx] then
         s.cfgIdx = sc.cfgIdx
-        s.layoutTree = deepCopy(config.screens[sc.cfgIdx].layout)
-        s.geometry = nil  -- recompute defaults for the new layout
+        s.columns = deepCopy(config.screens[sc.cfgIdx].columns)
       end
-      if type(sc.layout) == "table" then s.layoutTree = deepCopy(sc.layout) end
-      if type(sc.geometry) == "table" then s.geometry = deepCopy(sc.geometry) end
+      if type(sc.columns) == "table" then s.columns = deepCopy(sc.columns) end
       if type(sc.enabled) == "table" then
         local en = {}
         for k, v in pairs(sc.enabled) do en[k] = v and true or false end
@@ -43,8 +41,7 @@ end
 function M.save(config, screens)
   local out = { theme = config.theme, screens = {} }
   for _, s in ipairs(screens) do
-    out.screens[s.name] = { enabled = s.enabled, cfgIdx = s.cfgIdx,
-      layout = s.layoutTree, geometry = s.geometry }
+    out.screens[s.name] = { enabled = s.enabled, cfgIdx = s.cfgIdx, columns = s.columns }
   end
   local f = fs.open(FILE, "w"); if not f then return end
   f.write(textutils.serialize(out)); f.close()

@@ -32,32 +32,29 @@ M.config = {
 
   -- One entry per monitor (bound in detection order, or pin with `monitor=`).
   -- screens[1] must stand alone for single-monitor setups.
+  --
+  -- Layout is TWO columns, each an ordered list of sections. Column width is
+  -- shared by the number of NON-EMPTY columns (an empty column disappears and
+  -- the other takes full width); row height in a column is shared by the
+  -- number of enabled sections in it. Every section lives in one column so it
+  -- has a home when enabled; `enabled` controls what is shown. Rearrange live
+  -- on the monitor with EDIT (tap-move), or edit here.
   screens = {
     { -- monitor 1: full overview (self-sufficient)
       -- monitor = "monitor_0",
       enabled = { status = true, workforce = true, workers = true,
         orders = true, requests = true, legend = true },
-      layout = {
-        dir = "row",
-        { dir = "col", flex = 38, min = 20,
-          { section = "status",    flex = 8, min = 7, max = 9 },
-          { section = "workforce", flex = 7, min = 6, max = 8 },
-          { section = "orders",    flex = 10, min = 4 },
-          { section = "legend",    flex = 9, min = 4 },
-        },
-        { dir = "col", flex = 62, min = 24,
-          { section = "workers",  flex = 50, min = 6 },
-          { section = "requests", flex = 50, min = 6 },
-        },
+      columns = {
+        { "status", "workforce", "orders", "legend" },
+        { "workers", "requests" },
       },
     },
-    { -- monitor 2 (if present): logistics focus
-      enabled = { requests = true, orders = true, legend = true },
-      layout = {
-        dir = "col",
-        { section = "requests", flex = 70, min = 6 },
-        { section = "orders",   flex = 22, min = 4 },
-        { section = "legend",   flex = 8,  min = 3 },
+    { -- monitor 2 (if present): logistics focus (overview sections disabled)
+      enabled = { status = false, workforce = false, workers = false,
+        orders = true, requests = true, legend = true },
+      columns = {
+        { "requests", "orders", "legend" },
+        { "status", "workforce", "workers" },
       },
     },
   },
