@@ -66,7 +66,16 @@ local function enabledIn(screen, ci)
   return out
 end
 
--- rects[id] = {x,y,w,h} for every visible section.
+local COLGAP = 1  -- blank column between the two columns
+
+local function weightOf(screen, id)
+  local w = screen.weights and screen.weights[id]
+  return (type(w) == "number" and w > 0) and w or 1
+end
+
+-- rects[id] = {x,y,w,h} for every visible section. Column width is shared by
+-- the active columns (minus a gap); row height within a column is shared by
+-- each section's weight (so resizing one grows/shrinks its siblings).
 local function computeRects(screen)
   local active = {}
   for ci = 1, 2 do
@@ -76,18 +85,24 @@ local function computeRects(screen)
   local rects = {}
   local nCols = #active
   if nCols == 0 then return rects end
-  local totalW, availH = screen.W, screen.H - 1  -- last row is the footer
-  local baseW = math.floor(totalW / nCols)
+  local availW = screen.W - COLGAP * (nCols - 1)
+  local availH = screen.H - 1                         -- last row is the footer
+  local baseW = math.floor(availW / nCols)
+  local xcursor = 1
   for i, ids in ipairs(active) do
-    local x = (i - 1) * baseW + 1
-    local w = (i == nCols) and (totalW - (x - 1)) or baseW
-    local n = #ids
-    local baseH = math.floor(availH / n)
+    local w = (i == nCols) and (screen.W - xcursor + 1) or baseW
+    local x = xcursor
+    local sum = 0
+    for _, id in ipairs(ids) do sum = sum + weightOf(screen, id) end
+    local ycursor, used = 1, 0
     for j, id in ipairs(ids) do
-      local y = (j - 1) * baseH + 1
-      local h = (j == n) and (availH - (y - 1)) or baseH
-      rects[id] = { x = x, y = y, w = w, h = h }
+      local wt = weightOf(screen, id)
+      local h = (j == #ids) and (availH - used) or math.max(1, math.floor(availH * wt / sum))
+      rects[id] = { x = x, y = ycursor, w = w, h = h }
+      ycursor = ycursor + h
+      used = used + h
     end
+    xcursor = xcursor + w + COLGAP
   end
   return rects
 end
@@ -206,8 +221,17 @@ local function moveToOtherCol(screen, id)
   afterEdit(screen)
 end
 
+local function resizeHeight(screen, id, delta)
+  screen.weights = screen.weights or {}
+  local cur = screen.weights[id]
+  cur = (type(cur) == "number" and cur > 0) and cur or 1
+  screen.weights[id] = math.max(1, cur + delta)
+  afterEdit(screen)
+end
+
 function M.toggleEdit(screen) screen.edit = not screen.edit end
 
+-- EDIT controls on a section's bottom row: reorder, change column, resize height.
 local function moveControls(screen, id, w, h)
   local ci = findCol(screen, id)
   local y = h
@@ -215,26 +239,42 @@ local function moveControls(screen, id, w, h)
   x = draw.button(x, y, "\24", C.accent, colors.black, function() moveInCol(screen, id, -1) end)
   x = draw.button(x, y, "\25", C.accent, colors.black, function() moveInCol(screen, id, 1) end)
   local lbl = (ci == 1) and "\26" or "\27"  -- -> to column 2, <- to column 1
-  draw.button(x, y, lbl, C.good, colors.black, function() moveToOtherCol(screen, id) end)
+  x = draw.button(x, y, lbl, C.good, colors.black, function() moveToOtherCol(screen, id) end)
+  x = draw.button(x, y, "-", C.warn, C.btnText, function() resizeHeight(screen, id, -1) end)
+  draw.button(x, y, "+", C.good, C.btnText, function() resizeHeight(screen, id, 1) end)
 end
 
 ----------------------------------------------------------------------------
 -- Footer + modals
 ----------------------------------------------------------------------------
 
+-- Right-aligned button: draws " label " ending at the current right edge,
+-- returns the new right edge (one cell of gap to its left).
+local function rbutton(rx, label, bg, fg, action)
+  local w = #label + 2
+  local x = rx - w + 1
+  draw.button(x, 1, label, bg, fg, action)
+  return x - 2
+end
+
 local function drawFooter(screen, data, state, hooks)
   local W = screen.W
   draw.fillRect(1, 1, W, 1, C.cardTitle)
-  local x = 2
-  x = draw.button(x, 1, "THEME", C.accent, colors.black, function() hooks.cycleTheme() end) + 1
-  x = draw.button(x, 1, "SECTIONS", C.btn, C.btnText, function() screen.modal = { kind = "sections" } end) + 1
-  x = draw.button(x, 1, screen.edit and "EDIT*" or "EDIT", screen.edit and C.good or C.accent2, colors.black,
-    function() M.toggleEdit(screen) end) + 2
-  local right = string.format("%s #%s  %s  %02ds",
+
+  -- Left: colony / theme / countdown info.
+  local info = string.format("%s #%s  %s  %02ds",
     tostring(data and data.name or "?"), tostring(data and data.id or "?"),
     theme.THEMES[state.theme] and state.theme or "?", state.countdown)
-  draw.put(W - #right - 1, 1, right, C.dim, C.cardTitle)
-  if state.msg ~= "" and x < W - #right - 2 then draw.put(x, 1, state.msg, C.dim, C.cardTitle) end
+  draw.put(2, 1, info, C.dim, C.cardTitle)
+
+  -- Right: small EDIT icon; THEME + SECTIONS appear (to its left) only in EDIT.
+  local rx = W - 1
+  rx = rbutton(rx, screen.edit and "E*" or "E",
+    screen.edit and C.good or C.accent2, colors.black, function() M.toggleEdit(screen) end)
+  if screen.edit then
+    rx = rbutton(rx, "THEME", C.accent, colors.black, function() hooks.cycleTheme() end)
+    rx = rbutton(rx, "SECTIONS", C.btn, C.btnText, function() screen.modal = { kind = "sections" } end)
+  end
 end
 
 local function applyModal(screen, s, data)

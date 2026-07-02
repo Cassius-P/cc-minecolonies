@@ -56,12 +56,24 @@ function M.fillRect(x, y, w, h, bg)
   end
 end
 
--- SCADA card: gray title strip, dark/light body. Returns inner x,y,w,h.
+-- SCADA card: gray title strip, dark/light body. One blank row separates the
+-- title from the content. Returns inner x,y,w,h.
 function M.card(x, y, w, h, title)
   M.fillRect(x, y, w, h, C.card)
   M.fillRect(x, y, w, 1, C.cardTitle)
   M.put(x + 1, y, title, C.titleText, C.cardTitle)
-  return x + 1, y + 1, w - 2, h - 2
+  return x + 1, y + 2, w - 2, h - 3
+end
+
+-- Vertical bar: fills bottom-up within (x..x+w-1, y..y+h-1).
+function M.vbar(x, y, w, h, frac, color, bg)
+  frac = math.max(0, math.min(1, frac or 0))
+  if h < 1 then return end
+  local filled = math.floor(h * frac + 0.5)
+  for i = 0, h - 1 do
+    local row = y + h - 1 - i
+    M.fillRect(x, row, w, 1, (i < filled) and color or (bg or C.screen))
+  end
 end
 
 function M.hbar(x, y, w, frac, fillColor, label)

@@ -19,6 +19,11 @@ function M.locStr(loc)
   return "unknown"
 end
 
+function M.capitalize(s)
+  if type(s) ~= "string" or s == "" then return s end
+  return s:sub(1, 1):upper() .. s:sub(2)
+end
+
 function M.trimLead(str) return str and str:match("^%s*(.*)$") or "" end
 function M.lastWord(str) return string.match(str or "", "%S+$") end
 

@@ -68,7 +68,7 @@ function M.start(cfgModule)
 
     local s = { mon = mon, name = name, frame = frame,
       W = W, H = H, scroll = {}, modal = nil, edit = false,
-      columns = deepCopy(cfg.columns), enabled = {}, cfgIdx = cfgIdx }
+      columns = deepCopy(cfg.columns), enabled = {}, weights = {}, cfgIdx = cfgIdx }
     if type(cfg.enabled) == "table" then
       for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end
     end
@@ -112,6 +112,7 @@ function M.start(cfgModule)
     s.columns = deepCopy(cfg.columns)
     s.enabled = {}
     if type(cfg.enabled) == "table" then for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end end
+    s.weights = {}
     s.scroll = {}; s.modal = nil
     layout.applyRects(s)
     settings.save(config, screens)

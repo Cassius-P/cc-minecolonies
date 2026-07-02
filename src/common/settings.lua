@@ -27,8 +27,10 @@ function M.load(config, screens, isTheme)
       if type(sc.cfgIdx) == "number" and config.screens[sc.cfgIdx] then
         s.cfgIdx = sc.cfgIdx
         s.columns = deepCopy(config.screens[sc.cfgIdx].columns)
+        s.weights = {}
       end
       if type(sc.columns) == "table" then s.columns = deepCopy(sc.columns) end
+      if type(sc.weights) == "table" then s.weights = deepCopy(sc.weights) end
       if type(sc.enabled) == "table" then
         local en = {}
         for k, v in pairs(sc.enabled) do en[k] = v and true or false end
@@ -41,7 +43,8 @@ end
 function M.save(config, screens)
   local out = { theme = config.theme, screens = {} }
   for _, s in ipairs(screens) do
-    out.screens[s.name] = { enabled = s.enabled, cfgIdx = s.cfgIdx, columns = s.columns }
+    out.screens[s.name] = { enabled = s.enabled, cfgIdx = s.cfgIdx,
+      columns = s.columns, weights = s.weights }
   end
   local f = fs.open(FILE, "w"); if not f then return end
   f.write(textutils.serialize(out)); f.close()

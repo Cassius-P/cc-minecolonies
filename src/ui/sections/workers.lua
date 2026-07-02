@@ -7,6 +7,7 @@
 
 local draw  = require("ui.draw")
 local theme = require("ui.theme")
+local util  = require("common.util")
 local C = theme.C
 
 local M = {}
@@ -23,7 +24,7 @@ function M.draw(x, y, w, h, screen, d)
     if not r then break end
     local ry = cy + i - 1
     if r.kind == "head" then
-      draw.put(cx, ry, string.format("%s (%d/%d)", r.building, r.filled, r.max), C.accent2, C.card)
+      draw.put(cx, ry, string.format("%s (%d/%d)", util.capitalize(r.building), r.filled, r.max), C.accent2, C.card)
     elseif r.kind == "worker" then
       if r.status == "replace" then
         draw.button(cx, ry, "DO", C.btn, C.btnText, function() screen.modal = { kind = "apply", sug = r.sug } end)

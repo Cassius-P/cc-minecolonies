@@ -61,24 +61,23 @@ uninstall
 
 Everything is touch-driven on the monitor, plus a few keys on the computer.
 
-**Buttons along the bottom of each monitor:**
+**Editing the layout:** tap the small **`E`** icon at the bottom-right of a
+monitor to enter EDIT mode. Then:
 
-| Button | Does |
-|--------|------|
-| `THEME` | Switch color theme (applies to every monitor) |
-| `SECTIONS` | Show/hide sections on this monitor |
-| `EDIT` | Rearrange: each section shows `▲ ▼` (move up/down in its column) and `▶`/`◀` (send to the other column) |
+- The `THEME` (cycle colors, all monitors) and `SECTIONS` (show/hide) buttons
+  appear next to the `E` icon.
+- Each section shows controls on its bottom row: `▲ ▼` move it up/down in its
+  column, `▶`/`◀` send it to the other column, `- +` shrink/grow its height
+  (siblings in the column give up or take the space to stay full).
 
-The screen is **two columns**. A column's width is shared by however many
-columns have sections (empty a column and the other fills the whole screen);
-within a column, each section splits the height evenly — so size follows how
-many sections are where, with nothing to resize by hand. In EDIT mode use a
-section's `▲ ▼` to reorder it and `▶`/`◀` to move it between columns (that's how
-you fill a second column, or collapse to one). Changes save per monitor and
-survive updates.
+The screen is **two columns**. Column width is shared by however many columns
+have sections (empty a column and the other fills the whole screen); within a
+column, section heights follow the `- +` weights. Colony name, theme and the
+next-scan countdown sit at the bottom-left. Tap `E` again to leave EDIT.
+Everything saves per monitor and survives updates.
 
 > Note: Minecraft monitors only report taps — no click-drag and no scroll wheel
-> — so moving is done with these buttons rather than drag-and-drop.
+> — so moving/resizing use these buttons rather than drag-and-drop.
 
 **Keys on the computer screen:**
 
