@@ -25,8 +25,16 @@ local SECTIONS = {
   orders    = require("ui.sections.orders"),
   requests  = require("ui.sections.requests"),
   legend    = require("ui.sections.legend"),
+  jobskills = require("ui.sections.jobskills"),
 }
-local SECTION_ORDER = { "status", "workforce", "workers", "orders", "requests", "legend" }
+local SECTION_ORDER = { "status", "workforce", "workers", "orders", "requests", "legend", "jobskills" }
+-- Sections hidden unless explicitly enabled (enabled[id] == true).
+local DEFAULT_HIDDEN = { jobskills = true }
+
+local function isShown(screen, id)
+  if DEFAULT_HIDDEN[id] then return screen.enabled[id] == true end
+  return screen.enabled[id] ~= false
+end
 
 local M = {}
 M.SECTIONS = SECTIONS
@@ -61,7 +69,7 @@ end
 local function enabledIn(screen, ci)
   local out = {}
   for _, id in ipairs(screen.columns[ci] or {}) do
-    if screen.enabled[id] ~= false then out[#out + 1] = id end
+    if isShown(screen, id) then out[#out + 1] = id end
   end
   return out
 end
@@ -328,7 +336,7 @@ local function sectionsModal(screen, hooks)
   for i, id in ipairs(SECTION_ORDER) do
     local ry = cy + i
     if ry > my + mh - 2 then break end
-    local on = screen.enabled[id] ~= false
+    local on = isShown(screen, id)
     draw.put(cx, ry, on and "[x]" or "[ ]", on and C.good or C.dim, C.card)
     draw.put(cx + 4, ry, SECTIONS[id].title, on and C.text or C.dim, C.card)
     draw.addButton(cx, ry, cx + mw - 3, ry, function()

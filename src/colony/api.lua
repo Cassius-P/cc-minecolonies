@@ -3,6 +3,7 @@
 -- table, running suggestions/roster + optional CCxM auto-fulfill.
 ----------------------------------------------------------------------------
 
+local util     = require("common.util")
 local skills   = require("colony.skills")
 local advisor  = require("colony.advisor")
 local requests = require("colony.requests")
@@ -38,6 +39,17 @@ function M.gather(ctx)
     suggestions = advisor.computeSuggestions(citizens, buildings),
   }
   d.roster = advisor.computeRoster(citizens, buildings, d.suggestions)
+
+  -- Unique job types present in the colony (for the Job Skills section).
+  local jobset = {}
+  for _, b in ipairs(buildings) do
+    local jk = b.type or util.jobKey(b.name)
+    if jk and skills.JOB_SKILLS[jk] and b.built ~= false then jobset[jk] = true end
+  end
+  local jobTypes = {}
+  for jk in pairs(jobset) do jobTypes[#jobTypes + 1] = jk end
+  table.sort(jobTypes)
+  d.jobTypes = jobTypes
 
   -- Requests + optional auto-fulfill (CCxM).
   local bridge  = perif.findBridge(config)

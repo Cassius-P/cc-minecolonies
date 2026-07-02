@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.8",
+  version = "3.9",
 
   files = {
     -- entry + config + vendored dependency
@@ -48,6 +48,7 @@ return {
     { src = "src/ui/sections/orders.lua",    dst = "/ui/sections/orders.lua" },
     { src = "src/ui/sections/requests.lua",  dst = "/ui/sections/requests.lua" },
     { src = "src/ui/sections/legend.lua",    dst = "/ui/sections/legend.lua" },
+    { src = "src/ui/sections/jobskills.lua", dst = "/ui/sections/jobskills.lua" },
   },
 
   -- Targets never clobbered on update (user config / local edits survive).

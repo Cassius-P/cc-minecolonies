@@ -8,7 +8,7 @@
 
 local M = {}
 
-M.VERSION = "3.8"
+M.VERSION = "3.9"
 
 M.config = {
   theme          = "deepslate",   -- deepslate | smooth_stone | sandstone | basalt (GLOBAL)
@@ -45,7 +45,7 @@ M.config = {
       enabled = { status = true, workforce = true, workers = true,
         orders = true, requests = true, legend = true },
       columns = {
-        { "status", "workforce", "orders", "legend" },
+        { "status", "workforce", "orders", "legend", "jobskills" },
         { "workers", "requests" },
       },
     },
@@ -54,7 +54,7 @@ M.config = {
         orders = true, requests = true, legend = true },
       columns = {
         { "requests", "orders", "legend" },
-        { "status", "workforce", "workers" },
+        { "status", "workforce", "workers", "jobskills" },
       },
     },
   },
