@@ -66,11 +66,12 @@ local function enabledIn(screen, ci)
   return out
 end
 
-local COLGAP = 1  -- blank column between the two columns
+local COLGAP = 1        -- blank column between the two columns
+local DEFAULT_WEIGHT = 6 -- baseline height share, so a section can shrink below default
 
 local function weightOf(screen, id)
   local w = screen.weights and screen.weights[id]
-  return (type(w) == "number" and w > 0) and w or 1
+  return (type(w) == "number" and w > 0) and w or DEFAULT_WEIGHT
 end
 
 -- rects[id] = {x,y,w,h} for every visible section. Column width is shared by
@@ -223,9 +224,7 @@ end
 
 local function resizeHeight(screen, id, delta)
   screen.weights = screen.weights or {}
-  local cur = screen.weights[id]
-  cur = (type(cur) == "number" and cur > 0) and cur or 1
-  screen.weights[id] = math.max(1, cur + delta)
+  screen.weights[id] = math.max(1, weightOf(screen, id) + delta)
   afterEdit(screen)
 end
 
