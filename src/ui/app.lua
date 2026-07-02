@@ -96,7 +96,11 @@ function M.start(cfgModule)
 
   local function checkUpdate()
     local ok, res = pcall(updater.check, config)
-    if ok and type(res) == "table" then state.update = res end
+    if ok and type(res) == "table" then
+      state.update = res; state.checkFailed = false
+    else
+      state.checkFailed = true
+    end
   end
 
   local termUI
@@ -155,8 +159,12 @@ function M.start(cfgModule)
           os.reboot()
         end)
       else
-        -- Check: manual version check.
-        basalt.schedule(function() checkUpdate(); redrawAll() end)
+        -- Check: manual version check with visible feedback.
+        basalt.schedule(function()
+          state.checking = true; redrawAll()
+          checkUpdate()
+          state.checking = false; redrawAll()
+        end)
       end
     end,
   })

@@ -90,7 +90,13 @@ function M._update(ui, ctx, state, screens)
   ui.tbPerif:setText(table.concat(pl, "\n"))
 
   local up = state.update
-  if up and up.available then
+  if state.checking then
+    ui.lUpd:setText("Checking for updates..."):setForeground(colors.yellow)
+    ui.updBtn:setText("Checking..."):setBackground(colors.gray):setForeground(colors.white)
+  elseif state.checkFailed and not (up and up.available) then
+    ui.lUpd:setText("Check failed - no connection to GitHub"):setForeground(colors.red)
+    ui.updBtn:setText("Check for update"):setBackground(colors.blue):setForeground(colors.white)
+  elseif up and up.available then
     ui.lUpd:setText(("* Update available: v%s -> v%s"):format(up.localv, up.remote)):setForeground(colors.orange)
     ui.updBtn:setText("Install update"):setBackground(colors.green):setForeground(colors.black)
   elseif up then
