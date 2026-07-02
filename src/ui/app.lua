@@ -109,6 +109,25 @@ function M.start(cfgModule)
     if termUI then termUI.update(state, screens) end
   end
 
+  -- Update actions (used by both the keyboard shortcuts and the tab button).
+  local function doCheck()
+    basalt.schedule(function()
+      state.checking = true; redrawAll()
+      checkUpdate()
+      state.checking = false; redrawAll()
+    end)
+  end
+  local function doInstall()
+    if loading then return end
+    loading = true
+    if loader then loader.show("Updating from GitHub...") end
+    basalt.schedule(function()
+      sleep(0.3)
+      shell.run("/update.lua", "force")
+      os.reboot()
+    end)
+  end
+
   local function reassignScreen(i)
     local s = screens[i]; if not s then return end
     s.cfgIdx = ((s.cfgIdx or 1) % #config.screens) + 1
@@ -148,24 +167,7 @@ function M.start(cfgModule)
   termUI = terminal.build(mainFrame, {
     version = installedVersion, config = config,
     onUpdateButton = function()
-      if state.update and state.update.available then
-        -- Install: run the updater behind the loader, then reboot.
-        if loading then return end
-        loading = true
-        if loader then loader.show("Updating from GitHub...") end
-        basalt.schedule(function()
-          sleep(0.3)
-          shell.run("/update.lua", "force")  -- already confirmed newer; just install
-          os.reboot()
-        end)
-      else
-        -- Check: manual version check with visible feedback.
-        basalt.schedule(function()
-          state.checking = true; redrawAll()
-          checkUpdate()
-          state.checking = false; redrawAll()
-        end)
-      end
+      if state.update and state.update.available then doInstall() else doCheck() end
     end,
   })
 
@@ -199,6 +201,10 @@ function M.start(cfgModule)
       rescan(); redrawAll()
     elseif ch == "t" then
       hooks.cycleTheme(); redrawAll()
+    elseif ch == "u" then
+      doCheck()
+    elseif ch == "i" then
+      doInstall()
     elseif type(ch) == "string" and ch:match("%d") then
       reassignScreen(tonumber(ch)); redrawAll()
     end

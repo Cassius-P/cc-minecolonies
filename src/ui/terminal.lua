@@ -29,7 +29,8 @@ function M.build(mainFrame, ctx)
   ui.lBridge = st:addLabel({ x = 2, y = 7, width = tw - 2 })
   ui.lFoot   = st:addLabel({ x = 2, y = th - 3, width = tw - 2 }):setForeground(colors.lightGray)
   st:addLabel({ x = 2, y = th - 1, width = tw - 2 })
-    :setText("Keys: r rescan  t theme  1-9 screen  q quit"):setForeground(colors.lightGray)
+    :setText("Keys: r rescan  t theme  u check  i install  1-9 screen  q quit")
+    :setForeground(colors.lightGray)
 
   -- Monitors --------------------------------------------------------------
   local mt = tabs:newTab("Monitors")
@@ -56,7 +57,7 @@ function M.build(mainFrame, ctx)
     :setText("Check looks for a new version; Install pulls it and reboots.")
     :setForeground(colors.lightGray)
   ut:addLabel({ x = 2, y = 7, width = tw - 2 })
-    :setText("(or type 'update' at the shell)"):setForeground(colors.gray)
+    :setText("Keys: u = check, i = install (or 'update' at the shell)"):setForeground(colors.gray)
 
   return { update = function(state, screens) M._update(ui, ctx, state, screens) end }
 end
