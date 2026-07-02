@@ -50,12 +50,16 @@ local function domumLabel(it)
   local td = it.components and it.components["domum_ornamentum:texture_data"]
   local base = (it.displayName or it.name):gsub("^%[", ""):gsub("%]$", "")
   if type(td) ~= "table" then return base end
-  local primary = td["minecraft:block/oak_planks"]        -- first texture slot
-  local secondary = td["minecraft:block/dark_oak_planks"] -- second texture slot
-  local mats = {}
-  if primary then mats[#mats + 1] = prettyMat(primary) end
-  if secondary then mats[#mats + 1] = prettyMat(secondary) end
-  if #mats == 0 then for _, v in pairs(td) do mats[#mats + 1] = prettyMat(v) end end
+  -- Known slot order (primary then secondary), then any other slots. Blocks may
+  -- have just one material -- that is fine, we simply list what is present.
+  local SLOT_ORDER = { "minecraft:block/oak_planks", "minecraft:block/dark_oak_planks" }
+  local mats, seen = {}, {}
+  for _, k in ipairs(SLOT_ORDER) do
+    if td[k] then mats[#mats + 1] = prettyMat(td[k]); seen[k] = true end
+  end
+  for k, v in pairs(td) do
+    if not seen[k] then mats[#mats + 1] = prettyMat(v) end
+  end
   if #mats == 0 then return base end
   return base .. " (" .. table.concat(mats, " + ") .. ")"
 end
