@@ -35,6 +35,31 @@ local function levelWord(s, which)
   return v
 end
 
+-- "minecraft:spruce_log" -> "Spruce Log"
+local function prettyMat(id)
+  id = tostring(id):gsub("^.*[:/]", ""):gsub("_", " ")
+  return (id:gsub("(%w+)", function(w) return w:sub(1, 1):upper() .. w:sub(2) end))
+end
+
+-- Domum Ornamentum blocks carry two texture materials in item components. The
+-- recipe wording varies by block (frame/center, pillar/base, ...), so use
+-- generic PRIMARY / SECONDARY. Returns e.g.
+-- "Framed Cream Bricks (Spruce Log + Cream Bricks)".
+local function domumLabel(it)
+  if type(it.name) ~= "string" or not it.name:find("^domum_ornamentum:") then return nil end
+  local td = it.components and it.components["domum_ornamentum:texture_data"]
+  local base = (it.displayName or it.name):gsub("^%[", ""):gsub("%]$", "")
+  if type(td) ~= "table" then return base end
+  local primary = td["minecraft:block/oak_planks"]        -- first texture slot
+  local secondary = td["minecraft:block/dark_oak_planks"] -- second texture slot
+  local mats = {}
+  if primary then mats[#mats + 1] = prettyMat(primary) end
+  if secondary then mats[#mats + 1] = prettyMat(secondary) end
+  if #mats == 0 then for _, v in pairs(td) do mats[#mats + 1] = prettyMat(v) end end
+  if #mats == 0 then return base end
+  return base .. " (" .. table.concat(mats, " + ") .. ")"
+end
+
 -- "Leather -> Chain", "up to Chain", "Leather+", or "Any".
 local function rangeText(minL, maxL)
   if minL and maxL then
@@ -70,10 +95,13 @@ function M.categorize(rawRequests, log)
         base.equipPiece = bi
         base.displayLabel = bi .. " (" .. rangeText(minL, maxL) .. ")"
         equipment[#equipment + 1] = base
-      elseif string.find(base.target, "Builder") then
-        builder[#builder + 1] = base
       else
-        others[#others + 1] = base
+        base.displayLabel = domumLabel(req.items[1])  -- nil for non-domum
+        if string.find(base.target, "Builder") then
+          builder[#builder + 1] = base
+        else
+          others[#others + 1] = base
+        end
       end
     elseif log then
       log.write("Skipping request with no items: " .. (req.name or "unknown"))

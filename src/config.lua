@@ -8,7 +8,7 @@
 
 local M = {}
 
-M.VERSION = "3.21"
+M.VERSION = "3.22"
 
 M.config = {
   theme          = "deepslate",   -- deepslate | smooth_stone | sandstone | basalt (GLOBAL)
