@@ -103,6 +103,7 @@ function M.categorize(rawRequests, log)
         local dbase, dmats = domumInfo(req.items[1])  -- nil for non-domum
         base.displayLabel = dbase
         base.materials = dmats
+        if dbase then base.fingerprint = req.items[1].fingerprint end  -- exact-match id
         if string.find(base.target, "Builder") then
           builder[#builder + 1] = base
         else

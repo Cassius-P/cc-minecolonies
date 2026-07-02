@@ -46,8 +46,8 @@ local function equipCandidates(item, af)
   return out
 end
 
-local function detectQuantityField(bridge, itemName)
-  local ok, data = pcall(function() return bridge.getItem({ name = itemName }) end)
+local function detectQuantityField(bridge, filter)
+  local ok, data = pcall(function() return bridge.getItem(filter) end)
   if ok and data then
     if type(data.amount) == "number" then return "amount" end
     if type(data.count) == "number" then return "count" end
@@ -55,24 +55,25 @@ local function detectQuantityField(bridge, itemName)
   return nil
 end
 
--- Query stored amount + craftability for one item id.
-local function stockOf(bridge, name)
+-- Query stored amount + craftability for an item filter ({name=..} or
+-- {fingerprint=..} for an exact Domum match).
+local function stockOf(bridge, filter)
   local d
-  local ok = pcall(function() d = bridge.getItem({ name = name }) end)
+  local ok = pcall(function() d = bridge.getItem(filter) end)
   if not ok or type(d) ~= "table" then return nil end
   return (d[quantityField] or 0), d.isCraftable
 end
 
-local function domum(name) return string.sub(name, 1, 17) == "domum_ornamentum:" end
+local function domum(name) return type(name) == "string" and string.sub(name, 1, 17) == "domum_ornamentum:" end
 
--- Export up to `count` of `name` to storage; returns amount provided.
-local function doExport(bridge, storage, name, count)
+-- Export up to `count` matching `filter` to storage; returns amount provided.
+local function doExport(bridge, storage, filter, count)
+  local f = { count = count }
+  for k, v in pairs(filter) do f[k] = v end
   local provided = 0
-  local ok = pcall(function()
-    provided = bridge.exportItemToPeripheral({ name = name, count = count }, storage)
-  end)
+  local ok = pcall(function() provided = bridge.exportItemToPeripheral(f, storage) end)
   if not ok then
-    pcall(function() provided = bridge.exportItem({ name = name, count = count }, storage) end)
+    pcall(function() provided = bridge.exportItem(f, storage) end)
   end
   return provided or 0
 end
@@ -91,51 +92,59 @@ function M.handle(list, ctx)
       goto continue
     end
 
-    -- Candidate item ids to satisfy this request.
-    local candidates = item.equipment and equipCandidates(item, af) or { item.item_name }
-    if not quantityField then quantityField = detectQuantityField(bridge, candidates[1]) end
+    -- Candidate filters to satisfy this request. Domum requests use the exact
+    -- item fingerprint (Advanced Peripherals item id) so only the block with the
+    -- matching frame/center materials is exported. Equipment uses a name per
+    -- material in the level range. Everything else matches by name.
+    local filters = {}
+    if item.fingerprint then
+      filters[1] = { fingerprint = item.fingerprint }
+    elseif item.equipment then
+      for _, id in ipairs(equipCandidates(item, af)) do filters[#filters + 1] = { name = id } end
+    else
+      filters[1] = { name = item.item_name }
+    end
+    if not quantityField then quantityField = detectQuantityField(bridge, filters[1]) end
 
     -- Pass 1: pick the first candidate that is in stock and export it.
-    local stocked, craftId
-    for _, id in ipairs(candidates) do
-      local st, cr = stockOf(bridge, id)
-      if st == nil then
-        -- unknown; treat as not present
-      else
-        if st > 0 and not stocked then stocked = id end
-        if cr and not craftId then craftId = id end
+    local stocked, craftName
+    for _, fl in ipairs(filters) do
+      local st, cr = stockOf(bridge, fl)
+      if st then
+        if st > 0 and not stocked then stocked = fl end
+        if cr and fl.name and not craftName then craftName = fl.name end
       end
     end
 
     if stocked then
-      item.item_name = stocked
       item.provided = doExport(bridge, storage, stocked, item.count)
       if item.provided >= item.count then
-        item.displayColor = domum(stocked) and colors.lightBlue or colors.green
+        item.displayColor = domum(item.item_name) and colors.lightBlue or colors.green
+        goto continue
       else
         item.displayColor = colors.yellow
       end
-      if item.provided >= item.count then goto continue end
     end
 
-    -- Pass 2: craft a craftable candidate for the shortfall.
+    -- Pass 2: craft a craftable candidate for the shortfall (by name only;
+    -- Domum blocks are crafted in-world, not by the ME/RS system).
     if not af.craftMissing then
       if not stocked then item.displayColor = colors.red end
       goto continue
     end
     if item.equipment and not af.equipment then goto continue end
 
-    if craftId and (item.provided or 0) < item.count then
+    if craftName and (item.provided or 0) < item.count then
       local crafting = false
-      log.safeCall(function() crafting = bridge.isItemCrafting({ name = craftId }) end)
+      log.safeCall(function() crafting = bridge.isItemCrafting({ name = craftName }) end)
       if crafting then
-        item.item_name = craftId; item.displayColor = colors.blue
+        item.item_name = craftName; item.displayColor = colors.blue
         goto continue
       end
       local ok = log.safeCall(function()
-        return bridge.craftItem({ name = craftId, count = item.count - (item.provided or 0) })
+        return bridge.craftItem({ name = craftName, count = item.count - (item.provided or 0) })
       end)
-      item.item_name = craftId
+      item.item_name = craftName
       item.displayColor = ok and colors.blue or colors.yellow
     elseif not stocked then
       log.write((item.displayLabel or item.item_displayName or item.item_name) .. " not in system or craftable.")

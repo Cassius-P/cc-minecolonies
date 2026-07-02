@@ -13,9 +13,20 @@ local REPO = { owner = "Cassius-P", repo = "cc-minecolonies", branch = "main" }
 
 local force = (({ ... })[1] == "force")
 
-local function rawUrl(path)
-  return string.format("https://raw.githubusercontent.com/%s/%s/%s/%s?nocache=%d",
-    REPO.owner, REPO.repo, REPO.branch, path, os.epoch and os.epoch("utc") or 0)
+-- Fetch via the GitHub API (current content; raw is CDN-cached ~5 min and
+-- ignores query strings, so it can serve stale files). Raw fallback.
+local function fetch(path)
+  local h = http.get(string.format("https://api.github.com/repos/%s/%s/contents/%s?ref=%s",
+    REPO.owner, REPO.repo, path, REPO.branch),
+    { ["Accept"] = "application/vnd.github.raw", ["User-Agent"] = "cc-minecolonies" })
+  if not h then
+    h = http.get(string.format("https://raw.githubusercontent.com/%s/%s/%s/%s?nocache=%d",
+      REPO.owner, REPO.repo, REPO.branch, path, os.epoch and os.epoch("utc") or 0),
+      { ["Cache-Control"] = "no-cache" })
+  end
+  if not h then return nil end
+  local body = h.readAll(); h.close()
+  return body
 end
 
 local function localVersion()
@@ -26,9 +37,8 @@ local function localVersion()
 end
 
 local function remoteVersion()
-  local h = http.get(rawUrl("manifest.lua"), { ["Cache-Control"] = "no-cache" })
-  if not h then return nil end
-  local body = h.readAll(); h.close()
+  local body = fetch("manifest.lua")
+  if not body then return nil end
   local ok, mf = pcall(function() return load(body, "manifest", "t", {})() end)
   if ok and type(mf) == "table" and mf.version then return tostring(mf.version) end
   return nil
@@ -51,9 +61,8 @@ end
 
 print("Fetching latest installer...")
 if fs.exists("/install.lua") then fs.delete("/install.lua") end
-local h, err = http.get(rawUrl("install.lua"), { ["Cache-Control"] = "no-cache" })
-if not h then error("Could not fetch install.lua: " .. tostring(err), 0) end
-local body = h.readAll(); h.close()
+local body = fetch("install.lua")
+if not body then error("Could not fetch install.lua", 0) end
 
 local f = fs.open("/install.lua", "w")
 f.write(body); f.close()

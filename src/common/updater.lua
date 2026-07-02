@@ -23,9 +23,16 @@ function M.installed(fallback)
 end
 
 local function fetchRemoteVersion(repo)
-  local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/manifest.lua?nocache=%d",
-    repo.owner, repo.repo, repo.branch, os.epoch and os.epoch("utc") or 0)
-  local h = http.get(url, { ["Cache-Control"] = "no-cache", ["Pragma"] = "no-cache" })
+  -- GitHub API returns current content; raw is CDN-cached ~5 min (query strings
+  -- don't bust it), so it can report a stale version.
+  local h = http.get(string.format("https://api.github.com/repos/%s/%s/contents/manifest.lua?ref=%s",
+    repo.owner, repo.repo, repo.branch),
+    { ["Accept"] = "application/vnd.github.raw", ["User-Agent"] = "cc-minecolonies" })
+  if not h then
+    h = http.get(string.format("https://raw.githubusercontent.com/%s/%s/%s/manifest.lua?nocache=%d",
+      repo.owner, repo.repo, repo.branch, os.epoch and os.epoch("utc") or 0),
+      { ["Cache-Control"] = "no-cache" })
+  end
   if not h then return nil end
   local body = h.readAll(); h.close()
   local ok, mf = pcall(function() return load(body, "manifest", "t", {})() end)

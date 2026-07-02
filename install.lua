@@ -12,13 +12,19 @@
 -- >>> Point this at your public GitHub repo. <<<
 local REPO = { owner = "Cassius-P", repo = "cc-minecolonies", branch = "main" }
 
-local function rawUrl(path)
-  return string.format("https://raw.githubusercontent.com/%s/%s/%s/%s?nocache=%d",
-    REPO.owner, REPO.repo, REPO.branch, path, os.epoch and os.epoch("utc") or 0)
-end
+-- Fetch via the GitHub API (returns current content -- raw.githubusercontent
+-- caches for 5 min and ignores query strings, which served stale files). Falls
+-- back to raw if the API is unreachable / rate-limited.
+local API_HDRS = { ["Accept"] = "application/vnd.github.raw", ["User-Agent"] = "cc-minecolonies" }
 
 local function fetch(path)
-  local h = http.get(rawUrl(path), { ["Cache-Control"] = "no-cache" })
+  local h = http.get(string.format("https://api.github.com/repos/%s/%s/contents/%s?ref=%s",
+    REPO.owner, REPO.repo, path, REPO.branch), API_HDRS)
+  if not h then
+    h = http.get(string.format("https://raw.githubusercontent.com/%s/%s/%s/%s?nocache=%d",
+      REPO.owner, REPO.repo, REPO.branch, path, os.epoch and os.epoch("utc") or 0),
+      { ["Cache-Control"] = "no-cache" })
+  end
   if not h then return nil end
   local body = h.readAll(); h.close()
   return body
