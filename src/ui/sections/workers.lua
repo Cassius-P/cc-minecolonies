@@ -54,14 +54,16 @@ function M.draw(x, y, w, h, screen, d)
     for i = 1, maxSug do
       if row > bottom then break end
       local s = sugs[i]
-      draw.button(cx, row, "DO", C.btn, C.btnText, function() screen.modal = { kind = "apply", sug = s } end)
       local txt
       if s.kind == "assign" then
         txt = ("assign %s \26 %s"):format(s.candidate.name, cap(s.job))
       else
         txt = ("%s \26 %s (rep %s)"):format(s.candidate.name, cap(s.job), s.target.name)
       end
-      draw.put(cx + 5, row, trunc(txt, cw - 5), s.kind == "assign" and C.good or C.warn, C.card)
+      -- Highlight + make the WHOLE row the clickable action.
+      draw.fillRect(cx, row, cw, 1, C.cardTitle)
+      draw.put(cx + 1, row, "\16 " .. trunc(txt, cw - 3), s.kind == "assign" and C.good or C.warn, C.cardTitle)
+      draw.addButton(cx, row, cx + cw - 1, row, function() screen.modal = { kind = "apply", sug = s } end)
       row = row + 1
     end
     if #sugs > maxSug and row <= bottom then
