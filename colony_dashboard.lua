@@ -56,7 +56,7 @@
 
 local CONFIG = {
   theme = "deepslate",          -- deepslate | smooth_stone | sandstone | basalt
-  refreshSeconds = 20,
+  refreshSeconds = 5,
 
   enabled = {
     status      = true,
@@ -833,8 +833,7 @@ local function drawFooter()
     state.themeIdx = (state.themeIdx % #THEME_ORDER) + 1
     applyTheme(THEME_ORDER[state.themeIdx])
   end) + 1
-  x = button(x, H, "SECTIONS", C.btn, C.btnText, function() state.modal = { kind = "sections" } end) + 1
-  x = button(x, H, "QUIT", C.btnBad, colors.black, function() state.quit = true end) + 2
+  x = button(x, H, "SECTIONS", C.btn, C.btnText, function() state.modal = { kind = "sections" } end) + 2
   -- colony/theme/countdown live on the right of the footer (header removed)
   local right = string.format("%s #%s  %s  %02ds", tostring(d.name), tostring(d.id), CONFIG.theme, state.countdown)
   put(W - #right - 1, H, right, C.dim, C.cardTitle)
