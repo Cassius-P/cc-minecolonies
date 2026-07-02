@@ -682,12 +682,34 @@ end
 --* STATE
 ----------------------------------------------------------------------------
 
+-- Persisted settings (theme + section visibility) survive script updates.
+local SETTINGS_FILE = "colony_dashboard.settings"
+local function loadSettings()
+  if not fs.exists(SETTINGS_FILE) then return end
+  local f = fs.open(SETTINGS_FILE, "r"); if not f then return end
+  local raw = f.readAll(); f.close()
+  local ok, t = pcall(textutils.unserialize, raw)
+  if not (ok and type(t) == "table") then return end
+  if type(t.theme) == "string" and THEMES[t.theme] then CONFIG.theme = t.theme end
+  if type(t.enabled) == "table" then
+    for id in pairs(CONFIG.enabled) do
+      if t.enabled[id] ~= nil then CONFIG.enabled[id] = t.enabled[id] and true or false end
+    end
+  end
+end
+local function saveSettings()
+  local f = fs.open(SETTINGS_FILE, "w"); if not f then return end
+  f.write(textutils.serialize({ theme = CONFIG.theme, enabled = CONFIG.enabled }))
+  f.close()
+end
+
 local state = {
   data = nil, msg = "", countdown = CONFIG.refreshSeconds,
   quit = false, needScan = false, modal = nil,
   scroll = {},            -- per-section scroll offsets
   themeIdx = 1,
 }
+loadSettings()
 for i, n in ipairs(THEME_ORDER) do if n == CONFIG.theme then state.themeIdx = i end end
 
 ----------------------------------------------------------------------------
@@ -729,7 +751,7 @@ end
 local function secSuggestions(x, y, w, h)
   local d = state.data
   local list = d.suggestions
-  local cx, cy, cw, ch = card(x, y, w, h, string.format("SUGGESTIONS (%d)", #list))
+  local cx, cy, cw, ch = card(x, y, w, h, string.format("WORKERS (%d)", #list))
   state.scroll = scrollArrows("suggestions", x, y, w, #list, ch, state.scroll)
   if #list == 0 then put(cx, cy, "All jobs optimally staffed.", C.good, C.card); return end
   local off = state.scroll.suggestions or 0
@@ -740,9 +762,11 @@ local function secSuggestions(x, y, w, h)
     button(cx, ry, "DO", C.btn, C.btnText, function() state.modal = { kind = "apply", sug = s } end)
     local tx = cx + 5
     if s.kind == "assign" then
-      put(tx, ry, string.format("Assign %s \26 %s (+%d)", s.candidate.name, s.job, s.gain), C.good, C.card)
+      -- worker should move into an open job
+      put(tx, ry, string.format("%s \26 %s", s.candidate.name, s.job), C.good, C.card)
     else
-      put(tx, ry, string.format("Swap %s\26%s @%s (+%d)", s.target.name, s.candidate.name, s.job, s.gain), C.warn, C.card)
+      -- worker should replace a weaker one already in that job
+      put(tx, ry, string.format("%s \26 %s  (replace %s)", s.candidate.name, s.job, s.target.name), C.warn, C.card)
     end
   end
 end
@@ -780,9 +804,9 @@ local function secRequests(x, y, w, h)
     local it = list[i + off]
     if not it then break end
     local ry = cy + i - 1
-    local qty = (it.provided and it.provided > 0) and (it.provided .. "/" .. it.count) or tostring(it.count)
+    local qty = (it.provided or 0) .. "/" .. it.count
     local tgt = tostring(it.target or "")
-    local left = qty .. " " .. it.name
+    local left = qty .. " " .. (it.item_displayName or it.name)
     local room = cw - #tgt - 1
     put(cx, ry, left:sub(1, math.max(0, room)), it.displayColor or C.text, C.card)
     if #tgt > 0 then put(cx + cw - #tgt, ry, tgt, C.dim, C.card) end
@@ -806,7 +830,7 @@ end
 local SECTIONS = {
   status      = { title = "Colony Status", draw = secStatus },
   workforce   = { title = "Workforce",     draw = secWorkforce },
-  suggestions = { title = "Suggestions",   draw = secSuggestions },
+  suggestions = { title = "Workers",        draw = secSuggestions },
   orders      = { title = "Work Orders",   draw = secOrders },
   requests    = { title = "Open Requests", draw = secRequests },
   legend      = { title = "Legend",        draw = secLegend },
@@ -886,6 +910,7 @@ local function drawFooter()
   x = button(x, H, "THEME", C.accent, colors.black, function()
     state.themeIdx = (state.themeIdx % #THEME_ORDER) + 1
     applyTheme(THEME_ORDER[state.themeIdx])
+    saveSettings()
   end) + 1
   x = button(x, H, "SECTIONS", C.btn, C.btnText, function() state.modal = { kind = "sections" } end) + 2
   -- colony/theme/countdown live on the right of the footer (header removed)
@@ -950,7 +975,7 @@ local function drawSectionsModal()
     local box = on and "[x]" or "[ ]"
     put(cx, ry, box, on and C.good or C.dim, C.card)
     put(cx + 4, ry, SECTIONS[id].title, on and C.text or C.dim, C.card)
-    addButton(cx, ry, cx + mw - 3, ry, function() CONFIG.enabled[id] = not on end)
+    addButton(cx, ry, cx + mw - 3, ry, function() CONFIG.enabled[id] = not on; saveSettings() end)
   end
   button(cx, my + mh - 1, "CLOSE", C.btnOk, C.btnText, function() state.modal = nil end)
 end
