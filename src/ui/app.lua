@@ -128,12 +128,13 @@ function M.start(cfgModule)
     end)
   end
 
-  local function setMargin(key, delta)
+  local function setMargin(key, value)
+    local n = tonumber(value)
+    if not n then return end   -- ignore partial/empty input
     config.suggestions = config.suggestions or { replaceMargin = 1, reassignMargin = 1 }
-    local cur = config.suggestions[key] or 1
-    config.suggestions[key] = math.max(0, math.min(20, cur + delta))
+    config.suggestions[key] = math.max(0, math.min(20, math.floor(n)))
     settings.save(config, screens)
-    rescan(); redrawAll()   -- margins change the suggestions
+    rescan(); redrawAll()      -- margins change the suggestions
   end
 
   local function reassignScreen(i)
@@ -177,6 +178,7 @@ function M.start(cfgModule)
     onUpdateButton = function()
       if state.update and state.update.available then doInstall() else doCheck() end
     end,
+    onMargin = setMargin,
   })
 
   ----------------------------------------------------------------------------
@@ -203,6 +205,9 @@ function M.start(cfgModule)
   -- Global keys + periodic refresh
   ----------------------------------------------------------------------------
   basalt.onEvent("char", function(ch)
+    -- Ignore global shortcuts while typing in an input field.
+    local f = basalt.getFocus and basalt.getFocus()
+    if f and f.get and (f.get("type") == "Input" or f.get("type") == "TextBox") then return end
     if ch == "q" then
       basalt.stop()
     elseif ch == "r" then
@@ -213,14 +218,6 @@ function M.start(cfgModule)
       doCheck()
     elseif ch == "i" then
       doInstall()
-    elseif ch == "z" then
-      setMargin("replaceMargin", -1)
-    elseif ch == "x" then
-      setMargin("replaceMargin", 1)
-    elseif ch == "c" then
-      setMargin("reassignMargin", -1)
-    elseif ch == "v" then
-      setMargin("reassignMargin", 1)
     elseif type(ch) == "string" and ch:match("%d") then
       reassignScreen(tonumber(ch)); redrawAll()
     end

@@ -50,14 +50,21 @@ function M.build(mainFrame, ctx)
   local se = tabs:newTab("Settings")
   se:addLabel({ x = 2, y = 1, width = tw - 2, foreground = colors.yellow })
     :setText("Suggestion thresholds (skill gap to suggest a move)")
-  ui.lReplace  = se:addLabel({ x = 2, y = 3, width = tw - 2 })
-  ui.lReassign = se:addLabel({ x = 2, y = 4, width = tw - 2 })
-  se:addLabel({ x = 2, y = 6, width = tw - 2, foreground = colors.lightGray })
-    :setText("Keys:  z / x  replace margin -/+")
-  se:addLabel({ x = 2, y = 7, width = tw - 2, foreground = colors.lightGray })
-    :setText("       c / v  reassign margin -/+")
-  se:addLabel({ x = 2, y = 9, width = tw - 2, foreground = colors.gray })
-    :setText("0 = suggest every improvement; higher = only big wins.")
+  local sg = ctx.config.suggestions or {}
+  se:addLabel({ x = 2, y = 3, width = 16 }):setText("Replace margin:")
+  ui.inReplace = se:addInput({ x = 18, y = 3, width = 6, height = 1,
+    background = colors.black, foreground = colors.white })
+  ui.inReplace:setText(tostring(sg.replaceMargin or 1))
+  ui.inReplace:onChange("text", function(_, v) if ctx.onMargin then ctx.onMargin("replaceMargin", v) end end)
+  se:addLabel({ x = 2, y = 5, width = 16 }):setText("Reassign margin:")
+  ui.inReassign = se:addInput({ x = 18, y = 5, width = 6, height = 1,
+    background = colors.black, foreground = colors.white })
+  ui.inReassign:setText(tostring(sg.reassignMargin or 1))
+  ui.inReassign:onChange("text", function(_, v) if ctx.onMargin then ctx.onMargin("reassignMargin", v) end end)
+  se:addLabel({ x = 2, y = 7, width = tw - 2, foreground = colors.gray })
+    :setText("Click a field and type a number.")
+  se:addLabel({ x = 2, y = 8, width = tw - 2, foreground = colors.gray })
+    :setText("0 = every improvement; higher = only big wins.")
 
   -- Update ----------------------------------------------------------------
   local ut = tabs:newTab("Update")
@@ -103,9 +110,7 @@ function M._update(ui, ctx, state, screens)
   for _, p in ipairs(perif.diagnostics()) do pl[#pl + 1] = ("%s : %s"):format(p.name, p.type) end
   ui.tbPerif:setText(table.concat(pl, "\n"))
 
-  local sg = ctx.config.suggestions or {}
-  ui.lReplace:setText(("Replace margin  : %d"):format(sg.replaceMargin or 1)):setForeground(colors.white)
-  ui.lReassign:setText(("Reassign margin : %d"):format(sg.reassignMargin or 1)):setForeground(colors.white)
+  -- Settings inputs are not rewritten here (would clobber typing/cursor).
 
   local up = state.update
   if state.checking then
