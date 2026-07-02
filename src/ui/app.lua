@@ -98,12 +98,10 @@ function M.start(cfgModule)
     if ok and type(res) == "table" then state.update = res end
   end
 
-  local termWin
+  local termUI
   local function redrawAll()
     for _, s in ipairs(screens) do layout.render(s, state.data, state, hooks) end
-    if termWin then
-      terminal.render(termWin, { version = VERSION, config = config, state = state, screens = screens })
-    end
+    if termUI then termUI.update(state, screens) end
   end
 
   local function reassignScreen(i)
@@ -153,11 +151,9 @@ function M.start(cfgModule)
     end)
   end
 
-  -- Computer terminal frame + Display.
+  -- Computer terminal: native Basalt tabbed UI on the main frame.
   local mainFrame = basalt.getMainFrame()
-  local tw, th = term.getSize()
-  local termDisp = mainFrame:addDisplay({ x = 1, y = 1, width = tw, height = th })
-  termWin = termDisp:getWindow()
+  termUI = terminal.build(mainFrame, { version = VERSION, config = config })
 
   ----------------------------------------------------------------------------
   -- Settings, theme, first scan
