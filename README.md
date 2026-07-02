@@ -8,7 +8,31 @@ applied with `setPaletteColour`. `colors.brown` is repurposed as the dark card b
 
 ## Scripts
 
-### `colony_advisor.lua`
+### `colony_dashboard.lua`  (main)
+
+Configurable all-in-one dashboard. Supersedes `colony_advisor.lua` +
+`ccxm_requests.lua` by merging both into one screen.
+
+- **Flexbox layout** (`CONFIG.layout`): a tree of `row`/`col` containers and
+  section leaves. Each node takes `flex` (main-axis weight), `min`, `max`
+  (main-axis clamp in cells); the cross axis fills. Reorder children to move a
+  section, change `flex`/`min`/`max` to resize.
+- **Enable/disable** sections via `CONFIG.enabled` or the on-screen `SECTIONS`
+  button; disabled sections drop out and their space is redistributed.
+- **Themes**: all four cc-mek-scada palettes (`deepslate`, `smooth_stone`,
+  `sandstone`, `basalt`), set in `CONFIG.theme` or cycled with the `THEME` button.
+- **Sections**: status, workforce, suggestions, orders, requests, legend.
+- **Requests section = CCxM auto-fulfill**: with an ME/RS bridge + inventory,
+  colony requests auto-export to the warehouse and missing craftables queue.
+  Gated by `CONFIG.autofulfill` constraints:
+  `pauseUnderAttack`, `minHappiness`, `craftMissing`, `equipment`,
+  `equipmentLevel`, `skipItems`. Header shows mode: `AUTO` / `MANUAL` /
+  `PAUSED …` / `no bridge`.
+
+Requires: `colony_integrator`, advanced (touch) monitor. Optional: ME/RS bridge
++ inventory for auto-fulfill.
+
+### `colony_advisor.lua`  (legacy)
 
 Citizen-job advisor dashboard.
 
