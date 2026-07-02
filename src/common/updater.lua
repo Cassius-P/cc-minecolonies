@@ -22,17 +22,22 @@ function M.installed(fallback)
   return fallback or "?"
 end
 
-local function fetchRemoteVersion(repo)
-  -- GitHub API returns current content; raw is CDN-cached ~5 min (query strings
-  -- don't bust it), so it can report a stale version.
-  local h = http.get(string.format("https://api.github.com/repos/%s/%s/contents/manifest.lua?ref=%s",
+local function ghSha(repo)
+  local h = http.get(string.format("https://api.github.com/repos/%s/%s/commits/%s",
     repo.owner, repo.repo, repo.branch),
-    { ["Accept"] = "application/vnd.github.raw", ["User-Agent"] = "cc-minecolonies" })
-  if not h then
-    h = http.get(string.format("https://raw.githubusercontent.com/%s/%s/%s/manifest.lua?nocache=%d",
-      repo.owner, repo.repo, repo.branch, os.epoch and os.epoch("utc") or 0),
-      { ["Cache-Control"] = "no-cache" })
-  end
+    { ["Accept"] = "application/vnd.github.sha", ["User-Agent"] = "cc-minecolonies" })
+  if not h then return nil end
+  local s = h.readAll(); h.close(); s = s:gsub("%s+", "")
+  return (#s >= 7 and #s <= 64 and s:match("^%x+$")) and s or nil
+end
+
+local function fetchRemoteVersion(repo)
+  -- Resolve latest SHA (1 API call), read manifest from SHA-pinned raw
+  -- (immutable -> always fresh). Fall back to branch raw if the API is down.
+  local ref = ghSha(repo) or repo.branch
+  local suffix = (ref == repo.branch) and ("?nocache=" .. (os.epoch and os.epoch("utc") or 0)) or ""
+  local h = http.get(string.format("https://raw.githubusercontent.com/%s/%s/%s/manifest.lua%s",
+    repo.owner, repo.repo, ref, suffix), { ["Cache-Control"] = "no-cache" })
   if not h then return nil end
   local body = h.readAll(); h.close()
   local ok, mf = pcall(function() return load(body, "manifest", "t", {})() end)

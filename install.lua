@@ -12,19 +12,24 @@
 -- >>> Point this at your public GitHub repo. <<<
 local REPO = { owner = "Cassius-P", repo = "cc-minecolonies", branch = "main" }
 
--- Fetch via the GitHub API (returns current content -- raw.githubusercontent
--- caches for 5 min and ignores query strings, which served stale files). Falls
--- back to raw if the API is unreachable / rate-limited.
-local API_HDRS = { ["Accept"] = "application/vnd.github.raw", ["User-Agent"] = "cc-minecolonies" }
+-- Resolve the branch's latest commit SHA (1 API call), then fetch every file
+-- from SHA-pinned raw URLs. SHA-pinned raw is immutable: never CDN-stale and not
+-- rate-limited (unlike the API, which is 60 req/hr and was throttling installs).
+local function ghSha()
+  local h = http.get(string.format("https://api.github.com/repos/%s/%s/commits/%s",
+    REPO.owner, REPO.repo, REPO.branch),
+    { ["Accept"] = "application/vnd.github.sha", ["User-Agent"] = "cc-minecolonies" })
+  if not h then return nil end
+  local s = h.readAll(); h.close(); s = s:gsub("%s+", "")
+  return (#s >= 7 and #s <= 64 and s:match("^%x+$")) and s or nil
+end
+
+local REF = ghSha() or REPO.branch  -- fall back to branch (may be CDN-cached ~5 min)
 
 local function fetch(path)
-  local h = http.get(string.format("https://api.github.com/repos/%s/%s/contents/%s?ref=%s",
-    REPO.owner, REPO.repo, path, REPO.branch), API_HDRS)
-  if not h then
-    h = http.get(string.format("https://raw.githubusercontent.com/%s/%s/%s/%s?nocache=%d",
-      REPO.owner, REPO.repo, REPO.branch, path, os.epoch and os.epoch("utc") or 0),
-      { ["Cache-Control"] = "no-cache" })
-  end
+  local suffix = (REF == REPO.branch) and ("?nocache=" .. (os.epoch and os.epoch("utc") or 0)) or ""
+  local h = http.get(string.format("https://raw.githubusercontent.com/%s/%s/%s/%s%s",
+    REPO.owner, REPO.repo, REF, path, suffix), { ["Cache-Control"] = "no-cache" })
   if not h then return nil end
   local body = h.readAll(); h.close()
   return body
