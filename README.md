@@ -1,99 +1,111 @@
 # cc-minecolonies
 
-CC:Tweaked scripts for MineColonies via Advanced Peripherals `colony_integrator`.
-
-Shared UI system: SCADA-style cards with the **deepslate** palette from
-[cc-mek-scada](https://github.com/MikaylaFischler/cc-mek-scada) (`graphics/themes.lua`),
-applied with `setPaletteColour`. `colors.brown` is repurposed as the dark card body.
-
-## Scripts
-
-### `colony_dashboard.lua`  (main)
-
-Configurable all-in-one dashboard. Supersedes `colony_advisor.lua` +
-`ccxm_requests.lua` by merging both into one screen.
-
-- **Multi-monitor** (`CONFIG.screens`): one entry per monitor, each with its own
-  layout + section set, so one monitor shows an overview while another shows
-  logistics. Screens bind to monitors in detection order (or pin with
-  `monitor="<name>"`); a single monitor uses `screens[1]` (keep it complete),
-  extra monitors clone the last screen.
-- **Flexbox layout** (per screen `layout`): a tree of `row`/`col` containers and
-  section leaves. Each node takes `flex` (main-axis weight), `min`, `max`
-  (main-axis clamp in cells); the cross axis fills. Reorder children to move a
-  section, change `flex`/`min`/`max` to resize. Or use the **EDIT button** on the
-  monitor: each section gets `- +` (resize flex) and `↑ ↓` (move among siblings)
-  controls; changes persist per monitor.
-- **Workers** section is a full roster: every job building with its assigned
-  workers, each tagged `ok` or `→ replace w/ X` (a better idle citizen exists),
-  plus `+ assign X` / `+ (empty)` for open slots. `[DO]` opens the manual-hire card.
-- **Enable/disable** sections via each screen's `enabled` or the on-screen
-  `SECTIONS` button; disabled sections drop out and space is redistributed.
-- **Themes**: all four cc-mek-scada palettes (`deepslate`, `smooth_stone`,
-  `sandstone`, `basalt`), set in `CONFIG.theme` or cycled with the `THEME` button.
-  Theme is global — cycling it repaints every monitor. Section visibility is
-  per-monitor; both persist to the settings file (keyed by monitor name).
-- **Sections**: status, workforce, suggestions, orders, requests, legend.
-- **Requests section = CCxM auto-fulfill**: with an ME/RS bridge + inventory,
-  colony requests auto-export to the warehouse and missing craftables queue.
-  Gated by `CONFIG.autofulfill` constraints:
-  `pauseUnderAttack`, `minHappiness`, `craftMissing`, `equipment`,
-  `equipmentLevel`, `skipItems`. Header shows mode: `AUTO` / `MANUAL` /
-  `PAUSED …` / `no bridge`.
-
-- **Computer terminal** shows a live status panel (colony happiness/pop/threat,
-  workers-to-place, request count + auto-fulfill mode, bridge/storage presence)
-  and the detected monitors with their sizes and assigned screen. Keys:
-  `r` rescan, `t` cycle theme, `1`-`9` reassign a monitor's screen, `q` quit.
-- Layout **degrades gracefully** on small monitors: enabled sections shrink but
-  never vanish (previously a too-dense layout on a small monitor blanked cards).
-
-Requires: `colony_integrator`, advanced (touch) monitor. Optional: ME/RS bridge
-+ inventory for auto-fulfill.
-
-### `colony_advisor.lua`  (legacy)
-
-Citizen-job advisor dashboard.
-
-- Scores idle citizens against each job's primary/secondary skills
-- Suggests **Assign X -> Job** (open slot) or **Swap Y -> X** (full, stronger candidate)
-- Sections: colony status (happiness/population/threat), workforce, work orders,
-  open requests, scrollable suggestions
-- Touch: `[DO]` opens an apply card with manual hire steps + coords,
-  `[HANDLED]`, `[RESCAN]`, `[QUIT]`
-
-> The `colony_integrator` API is read-only: assignment stays manual (hut GUI ->
-> Hire/Fire). `tryApiAssign()` is the hook point if AP ever adds an assign method.
-
-Requires: `colony_integrator`, advanced (touch) monitor.
-
-### `ccxm_requests.lua`
-
-"Ultimate CC x MineColonies" request fulfiller (v1.15), UI reworked to the same
-card system. All original features kept:
-
-- Auto-exports colony requests from an ME/RS bridge to a storage/warehouse,
-  queues crafts, tracks crafting status
-- Equipment level parsing (`craftEquipmentOfLevel`), skip-list, domum ornamentum
-  handling, log rotation, terminal requirements checker
-- Cards: builder / equipment / other requests (scrollable) + color-code legend
-- Color code: red missing, yellow stuck/partial, blue crafting, green exported,
-  light blue domum, gray skipped
-
-Requires: `colony_integrator`, ME or RS bridge, adjacent inventory, 4x3+ advanced monitor.
+A modular [CC:Tweaked](https://tweaked.cc/) dashboard for MineColonies via the
+Advanced Peripherals `colony_integrator`. Built on the
+[Basalt 2](https://github.com/Pyroxenium/Basalt2) UI framework, with an
+architecture modeled on [cc-mek-scada](https://github.com/MikaylaFischler/cc-mek-scada)
+(shared `common/`, split `colony/` `storage/` `ui/` layers) and a GitHub-based
+install/update flow.
 
 ## Install (in-game)
 
+The dashboard installs from this public GitHub repo. Set `REPO` at the top of
+`install.lua`/`update.lua` to your fork if you republish it.
+
 ```
-wget <paste.rs link> colony_advisor.lua
-colony_advisor
+wget https://raw.githubusercontent.com/Cassius-P/cc-minecolonies/main/install.lua install.lua
+install.lua
+reboot
 ```
 
-Upload helper (any file -> paste.rs link): see `pastebin_up.lua`.
+`install.lua` fetches `manifest.lua` and every file it lists, writes them to the
+computer root, vendors Basalt, and installs `startup.lua` so the dashboard
+auto-launches on boot (hold a key within 2s at boot to cancel).
+
+**Update** (keeps your `config.lua` and saved settings):
+
+```
+update
+```
+
+`update.lua` re-downloads `install.lua` and runs it in update mode. Only
+`config.lua` is preserved; everything else is overwritten to the pinned version.
+
+## Architecture
+
+```
+install.lua / update.lua / manifest.lua   GitHub install + update flow
+vendor/basalt.lua                          pinned Basalt 2 (full build)
+src/
+  startup.lua        auto-launch on boot (+ cancel key, crash guard)
+  main.lua           entry: package.path + app.start(config)
+  config.lua         default config (theme, screens, autofulfill, peripherals)
+  common/            util, log, peripherals (modem-aware), settings
+  colony/            skills, advisor (suggestions+roster), requests, api (scan)
+  storage/           fulfill (CCxM auto-fulfill core)
+  ui/                theme, draw (primitives), layout (engine+modals),
+                     terminal, app; sections/ (status, workforce, workers,
+                     orders, requests, legend)
+legacy/              previous monolithic scripts (not installed)
+tools/               colony_dump.lua, pastebin_up.lua (dev helpers)
+```
+
+Each module returns a table and is required by dotted path (`require("colony.api")`);
+`main.lua` puts the install root on `package.path`.
+
+## Features
+
+- **Multi-monitor** (`config.screens`): one entry per monitor, each with its own
+  layout + enabled sections. Screens bind to monitors in detection order, or pin
+  a monitor by network name with `monitor="..."`. Basalt binds each frame to its
+  monitor and routes `monitor_touch` to the right screen natively, so touch works
+  on every monitor (adjacent or over a wired modem). A single monitor uses
+  `screens[1]` (keep it self-sufficient); extra monitors clone the last screen.
+- **Flexbox-like layout**: a tree of `row`/`col` containers and section leaves,
+  each with `flex` / `min` / `max`. On a monitor too small for all mins, sections
+  shrink but never vanish. **EDIT** button on the monitor: `- +` resize, `up/down`
+  reorder; **SECTIONS** button toggles visibility. Both persist per monitor.
+- **Workers** section = full roster: every job building + its workers, each
+  tagged `ok` or `replace w/ X`, plus `+ assign X` / `+ (empty)` for open slots.
+  `[DO]` opens the manual-hire card (`colony_integrator` is read-only, so
+  assignment stays manual).
+- **Themes**: all four cc-mek-scada palettes (`deepslate`, `smooth_stone`,
+  `sandstone`, `basalt`). Global — the `THEME` button repaints every monitor.
+  Theme + per-monitor sections/layout persist to `colony_dashboard.settings`.
+- **Requests + CCxM auto-fulfill**: with an ME/RS bridge + warehouse inventory,
+  colony requests auto-export and missing craftables queue. Gated by
+  `config.autofulfill` (`pauseUnderAttack`, `minHappiness`, `craftMissing`,
+  `equipment`, `equipmentLevel`, `skipItems`). Header shows the mode
+  (`AUTO` / `MANUAL` / `PAUSED …` / `no bridge`); the Legend section decodes the
+  row colors.
+- **Computer terminal**: live colony vitals, workers-to-place, request/fulfill
+  mode, monitor assignments, and a **peripheral network map** (name : type) to
+  identify remotes. Keys: `r` rescan, `t` theme, `1`-`9` reassign a monitor's
+  screen, `q` quit.
+
+## Remote peripherals (wired modem)
+
+Discovery is by type/network-name (`peripheral.find` / `getNames`), which
+traverse a wired-modem network transparently — the colony integrator, ME/RS
+bridge, warehouse inventory, and monitors can live anywhere on the network. To
+pin a specific remote when several exist, set its network name in
+`config.peripherals` (`colony`, `bridge`, `storage`, `monitors`); the terminal's
+peripheral map lists the available names. The bridge exports to the warehouse by
+network name, so auto-fulfill works with a remote inventory too. (Cross-computer
+wireless `rednet` is out of scope — this is about reaching peripherals, not other
+computers.)
+
+## Configuration
+
+Edit `config.lua` on the computer (preserved across updates). Key fields: `theme`,
+`refreshSeconds`, `peripherals` overrides, `screens` (per-monitor layout + enabled
+sections), `autofulfill`, `logToFile`.
 
 ## Notes
 
-- Field mappings verified against a live dump of `getCitizens()` / `getBuildings()`
-  (MC 1.20, MineColonies + Advanced Peripherals)
-- `JOB_SKILLS` / `JOB_MAX_SLOTS` in `colony_advisor.lua` are config: the API does
-  not expose per-building worker capacity
+- Field mappings are verified against a live dump of `getCitizens()` /
+  `getBuildings()`; `JOB_SKILLS` in `colony/skills.lua` is wiki-verified config
+  (the API does not expose per-building worker capacity or exact skills).
+- Basalt is vendored (`vendor/basalt.lua`) and pinned for reproducible installs.
+- `tools/colony_dump.lua` dumps the live API to paste.rs; `tools/pastebin_up.lua`
+  uploads any on-computer file.
