@@ -1,16 +1,35 @@
-# cc-minecolonies
+# MineColonies Dashboard
 
-A modular [CC:Tweaked](https://tweaked.cc/) dashboard for MineColonies via the
-Advanced Peripherals `colony_integrator`. Built on the
-[Basalt 2](https://github.com/Pyroxenium/Basalt2) UI framework, with an
-architecture modeled on [cc-mek-scada](https://github.com/MikaylaFischler/cc-mek-scada)
-(shared `common/`, split `colony/` `storage/` `ui/` layers) and a GitHub-based
-install/update flow.
+A live control panel for your MineColonies colony, shown on in-game monitors and
+driven by an Advanced Computer. See at a glance how your colony is doing, who
+should be working where, and let it auto-fill your colonists' item requests from
+an ME/RS storage system.
 
-## Install (in-game)
+![built with Basalt](https://img.shields.io/badge/UI-Basalt%202-blue)
 
-The dashboard installs from this public GitHub repo. Set `REPO` at the top of
-`install.lua`/`update.lua` to your fork if you republish it.
+## What it shows
+
+- **Colony status** — happiness, population, threats, construction, graves.
+- **Workforce** — citizen, employed, idle, visitor and building counts.
+- **Workers** — every job building and its workers. Each worker is tagged
+  `ok`, or `replace w/ X` when a better idle colonist exists; empty slots show
+  `+ assign X`. Tap `[DO]` for exact hire steps and coordinates.
+- **Open requests** — what your colonists need, auto-filled from storage when a
+  bridge is connected (see below). Colors show progress (Legend section decodes
+  them).
+- **Work orders** — what your builders have queued.
+
+## What you need
+
+- An **Advanced Computer** (gold) and at least one **Advanced Monitor**.
+- An **Advanced Peripherals "Colony Integrator"**, placed inside your colony,
+  connected to the computer (touching it, or over a wired-modem network).
+- *Optional, for auto-fill:* an **ME Bridge** or **RS Bridge** plus a
+  **warehouse/inventory** on the same network.
+
+## Install
+
+On the Advanced Computer, type:
 
 ```
 wget https://raw.githubusercontent.com/Cassius-P/cc-minecolonies/main/install.lua install.lua
@@ -18,94 +37,86 @@ install.lua
 reboot
 ```
 
-`install.lua` fetches `manifest.lua` and every file it lists, writes them to the
-computer root, vendors Basalt, and installs `startup.lua` so the dashboard
-auto-launches on boot (hold a key within 2s at boot to cancel).
+After the reboot the dashboard starts on its own and draws to your monitors.
+(Hold any key during the 2-second boot message to skip auto-start.)
 
-**Update** (keeps your `config.lua` and saved settings):
+**To update later**, just type:
 
 ```
 update
 ```
 
-`update.lua` re-downloads `install.lua` and runs it in update mode. Only
-`config.lua` is preserved; everything else is overwritten to the pinned version.
+Your settings and any changes you made to `config.lua` are kept.
 
-## Architecture
+## Using it
 
-```
-install.lua / update.lua / manifest.lua   GitHub install + update flow
-vendor/basalt.lua                          pinned Basalt 2 (full build)
-src/
-  startup.lua        auto-launch on boot (+ cancel key, crash guard)
-  main.lua           entry: package.path + app.start(config)
-  config.lua         default config (theme, screens, autofulfill, peripherals)
-  common/            util, log, peripherals (modem-aware), settings
-  colony/            skills, advisor (suggestions+roster), requests, api (scan)
-  storage/           fulfill (CCxM auto-fulfill core)
-  ui/                theme, draw (primitives), layout (engine+modals),
-                     terminal, app; sections/ (status, workforce, workers,
-                     orders, requests, legend)
-legacy/              previous monolithic scripts (not installed)
-tools/               colony_dump.lua, pastebin_up.lua (dev helpers)
-```
+Everything is touch-driven on the monitor, plus a few keys on the computer.
 
-Each module returns a table and is required by dotted path (`require("colony.api")`);
-`main.lua` puts the install root on `package.path`.
+**Buttons along the bottom of each monitor:**
 
-## Features
+| Button | Does |
+|--------|------|
+| `REFRESH` | Re-scan the colony now |
+| `THEME` | Switch color theme (applies to every monitor) |
+| `SECTIONS` | Show/hide sections on this monitor |
+| `EDIT` | Rearrange: `- +` resize a section, arrows move it up/down |
 
-- **Multi-monitor** (`config.screens`): one entry per monitor, each with its own
-  layout + enabled sections. Screens bind to monitors in detection order, or pin
-  a monitor by network name with `monitor="..."`. Basalt binds each frame to its
-  monitor and routes `monitor_touch` to the right screen natively, so touch works
-  on every monitor (adjacent or over a wired modem). A single monitor uses
-  `screens[1]` (keep it self-sufficient); extra monitors clone the last screen.
-- **Flexbox-like layout**: a tree of `row`/`col` containers and section leaves,
-  each with `flex` / `min` / `max`. On a monitor too small for all mins, sections
-  shrink but never vanish. **EDIT** button on the monitor: `- +` resize, `up/down`
-  reorder; **SECTIONS** button toggles visibility. Both persist per monitor.
-- **Workers** section = full roster: every job building + its workers, each
-  tagged `ok` or `replace w/ X`, plus `+ assign X` / `+ (empty)` for open slots.
-  `[DO]` opens the manual-hire card (`colony_integrator` is read-only, so
-  assignment stays manual).
-- **Themes**: all four cc-mek-scada palettes (`deepslate`, `smooth_stone`,
-  `sandstone`, `basalt`). Global — the `THEME` button repaints every monitor.
-  Theme + per-monitor sections/layout persist to `colony_dashboard.settings`.
-- **Requests + CCxM auto-fulfill**: with an ME/RS bridge + warehouse inventory,
-  colony requests auto-export and missing craftables queue. Gated by
-  `config.autofulfill` (`pauseUnderAttack`, `minHappiness`, `craftMissing`,
-  `equipment`, `equipmentLevel`, `skipItems`). Header shows the mode
-  (`AUTO` / `MANUAL` / `PAUSED …` / `no bridge`); the Legend section decodes the
-  row colors.
-- **Computer terminal**: live colony vitals, workers-to-place, request/fulfill
-  mode, monitor assignments, and a **peripheral network map** (name : type) to
-  identify remotes. Keys: `r` rescan, `t` theme, `1`-`9` reassign a monitor's
-  screen, `q` quit.
+Changes are saved automatically, per monitor, and survive updates.
 
-## Remote peripherals (wired modem)
+**Keys on the computer screen:**
 
-Discovery is by type/network-name (`peripheral.find` / `getNames`), which
-traverse a wired-modem network transparently — the colony integrator, ME/RS
-bridge, warehouse inventory, and monitors can live anywhere on the network. To
-pin a specific remote when several exist, set its network name in
-`config.peripherals` (`colony`, `bridge`, `storage`, `monitors`); the terminal's
-peripheral map lists the available names. The bridge exports to the warehouse by
-network name, so auto-fulfill works with a remote inventory too. (Cross-computer
-wireless `rednet` is out of scope — this is about reaching peripherals, not other
-computers.)
+`r` rescan · `t` theme · `1`-`9` change which layout a monitor uses · `q` quit.
 
-## Configuration
+**Multiple monitors:** connect as many as you like. The first gets a full
+overview; extra monitors show a logistics view. Touch works on every monitor,
+including ones connected through a wired modem.
 
-Edit `config.lua` on the computer (preserved across updates). Key fields: `theme`,
-`refreshSeconds`, `peripherals` overrides, `screens` (per-monitor layout + enabled
-sections), `autofulfill`, `logToFile`.
+## Auto-filling requests
+
+Connect an ME or RS **bridge** and a **warehouse inventory**, and the dashboard
+exports requested items to the warehouse and queues crafts for anything missing.
+The Open Requests header shows the mode:
+
+- `AUTO` — filling automatically
+- `MANUAL` — no auto-fill (no bridge/storage found)
+- `PAUSED …` — held back by a rule you set (e.g. colony under attack)
+- `no bridge` — connect a bridge to enable it
+
+Tune the rules in `config.lua` under `autofulfill` (pause when raided, minimum
+happiness, whether to craft missing items, equipment tier to craft, items to
+skip).
+
+## Settings
+
+Open `config.lua` on the computer (it's kept safe across updates). Common tweaks:
+
+- `theme` — starting color theme.
+- `refreshSeconds` — how often to re-scan.
+- `screens` — which sections each monitor shows and how they're arranged.
+- `autofulfill` — the storage rules above.
+- `peripherals` — usually leave blank; set a device's network name here only if
+  you have several and want to pick a specific one. The computer screen lists
+  every connected device's name to copy from.
+
+## Troubleshooting
+
+- **"No colony_integrator found"** — the integrator must be inside the colony and
+  connected to the computer (adjacent, or on a wired-modem network with the modem
+  enabled).
+- **"No monitor found"** — attach an Advanced Monitor (directly or via modem).
+- **Nothing auto-fills** — check the Open Requests mode; `no bridge` means the
+  bridge or warehouse isn't detected. The computer screen's peripheral list shows
+  what it can see.
+- **A section looks squished** — the monitor is small for that layout; use
+  `SECTIONS` to hide some, or `EDIT` to resize. Sections shrink but never vanish.
 
 ## Notes
 
-- Field mappings are verified against a live dump of `getCitizens()` /
-  `getBuildings()`; `JOB_SKILLS` in `colony/skills.lua` is wiki-verified config
-  (the API does not expose per-building worker capacity or exact skills).
-- Basalt is vendored (`vendor/basalt.lua`) and pinned for reproducible installs.
-- `tools/colony_dump.lua` dumps the live API to paste.rs; `tools/pastebin_up.lua`
-  uploads any on-computer file.
+- Built on the [Basalt 2](https://github.com/Pyroxenium/Basalt2) UI framework
+  (bundled — no separate install) with a color scheme from
+  [cc-mek-scada](https://github.com/MikaylaFischler/cc-mek-scada).
+- Assigning colonists stays manual: the Colony Integrator is read-only, so `[DO]`
+  gives you the steps rather than doing the hire for you.
+- Republishing your own copy? Point `REPO` at the top of `install.lua` and
+  `update.lua` to your GitHub fork.
+- Developer docs (module layout, internals) live in the source under `src/`.
