@@ -36,6 +36,13 @@ Configurable all-in-one dashboard. Supersedes `colony_advisor.lua` +
   `equipmentLevel`, `skipItems`. Header shows mode: `AUTO` / `MANUAL` /
   `PAUSED …` / `no bridge`.
 
+- **Computer terminal** shows a live status panel (colony happiness/pop/threat,
+  workers-to-place, request count + auto-fulfill mode, bridge/storage presence)
+  and the detected monitors with their sizes and assigned screen. Keys:
+  `r` rescan, `t` cycle theme, `1`-`9` reassign a monitor's screen, `q` quit.
+- Layout **degrades gracefully** on small monitors: enabled sections shrink but
+  never vanish (previously a too-dense layout on a small monitor blanked cards).
+
 Requires: `colony_integrator`, advanced (touch) monitor. Optional: ME/RS bridge
 + inventory for auto-fulfill.
 

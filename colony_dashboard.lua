@@ -178,6 +178,7 @@ end
 
 local REPLACE_MARGIN, PRIMARY_WEIGHT, SECONDARY_WEIGHT, HAPPINESS_MAX = 3, 1.0, 0.5, 10
 local MAX_SUGGESTIONS = 60
+local VERSION = "2.0"
 
 ----------------------------------------------------------------------------
 --* THEMES (cc-mek-scada: graphics/themes.lua). brown slot = card body.
@@ -301,29 +302,28 @@ local function buildScreens()
   local pool, pi = {}, 1
   for _, n in ipairs(monNames) do if not reserved[n] then pool[#pool + 1] = n end end
 
-  local function mk(name, sc)
+  local function mk(name, sc, cfgIdx)
     if screenByName[name] then return end
     local mon = peripheral.wrap(name)
     mon.setTextScale(sc.textScale or 0.5)
-    local en = {}
-    if type(sc.enabled) == "table" then for k, v in pairs(sc.enabled) do en[k] = v and true or false end end
     local s = { mon = mon, name = name, buttons = {}, scroll = {}, modal = nil,
-      layout = sc.layout, enabled = en }
+      layout = sc.layout, enabled = {}, cfgIdx = cfgIdx }
+    if type(sc.enabled) == "table" then for k, v in pairs(sc.enabled) do s.enabled[k] = v and true or false end end
     s.W, s.H = mon.getSize()
     screens[#screens + 1] = s
     screenByName[name] = s
   end
 
-  for _, sc in ipairs(CONFIG.screens) do
+  for idx, sc in ipairs(CONFIG.screens) do
     local name = sc.monitor
     if not (name and peripheral.getType(name) == "monitor") then name = pool[pi]; pi = pi + 1 end
-    if name then mk(name, sc) end
+    if name then mk(name, sc, idx) end
   end
   -- extra monitors beyond the configured screens mirror the last screen config
-  local lastCfg = CONFIG.screens[#CONFIG.screens]
+  local lastIdx = #CONFIG.screens
   while pi <= #pool do
     local name = pool[pi]; pi = pi + 1
-    if lastCfg then mk(name, lastCfg) end
+    mk(name, CONFIG.screens[lastIdx], lastIdx)
   end
 end
 
@@ -765,17 +765,23 @@ local function loadSettings()
   if type(t.screens) == "table" then
     for _, s in ipairs(screens) do
       local sc = t.screens[s.name]
-      if type(sc) == "table" and type(sc.enabled) == "table" then
-        local en = {}
-        for k, v in pairs(sc.enabled) do en[k] = v and true or false end
-        s.enabled = en
+      if type(sc) == "table" then
+        if type(sc.cfgIdx) == "number" and CONFIG.screens[sc.cfgIdx] then
+          s.cfgIdx = sc.cfgIdx
+          s.layout = CONFIG.screens[sc.cfgIdx].layout
+        end
+        if type(sc.enabled) == "table" then
+          local en = {}
+          for k, v in pairs(sc.enabled) do en[k] = v and true or false end
+          s.enabled = en
+        end
       end
     end
   end
 end
 local function saveSettings()
   local out = { theme = CONFIG.theme, screens = {} }
-  for _, s in ipairs(screens) do out.screens[s.name] = { enabled = s.enabled } end
+  for _, s in ipairs(screens) do out.screens[s.name] = { enabled = s.enabled, cfgIdx = s.cfgIdx } end
   local f = fs.open(SETTINGS_FILE, "w"); if not f then return end
   f.write(textutils.serialize(out)); f.close()
 end
@@ -942,24 +948,34 @@ local function layoutNode(node, x, y, w, h)
 
   local main = horizontal and w or h
   local avail = main - GAP * (n - 1)
-  if avail < n then avail = math.max(n, main) end
+  if avail < n then avail = n end   -- guarantee >=1 cell per child (may clip)
 
   local sizes = {}
-  local remaining, remFlex = avail, 0
-  for _, ch in ipairs(vis) do remFlex = remFlex + (ch.flex or 1) end
-  for i, ch in ipairs(vis) do
-    local flex = ch.flex or 1
-    local raw = (remFlex > 0) and math.floor(remaining * flex / remFlex + 0.5) or 0
-    local mn, mx = ch.min or 1, ch.max or math.huge
-    if raw < mn then raw = mn end
-    if raw > mx then raw = mx end
-    if raw > remaining then raw = math.max(0, remaining) end
-    sizes[i] = raw
-    remaining = remaining - raw
-    remFlex = remFlex - flex
+  local sumMin, totalFlex = 0, 0
+  for _, ch in ipairs(vis) do sumMin = sumMin + (ch.min or 1); totalFlex = totalFlex + (ch.flex or 1) end
+
+  if sumMin <= avail then
+    -- room for all mins: give each its min, share surplus by flex (capped at max)
+    local surplus = avail - sumMin
+    for i, ch in ipairs(vis) do
+      local add = totalFlex > 0 and math.floor(surplus * (ch.flex or 1) / totalFlex) or 0
+      local sz = (ch.min or 1) + add
+      local mx = ch.max or math.huge
+      if sz > mx then sz = mx end
+      sizes[i] = sz
+    end
+  else
+    -- monitor too small for all mins: shrink proportionally but never below 1,
+    -- so every enabled section still renders (clipped) instead of vanishing
+    for i, ch in ipairs(vis) do
+      sizes[i] = math.max(1, math.floor(avail * (ch.flex or 1) / math.max(1, totalFlex)))
+    end
   end
-  -- hand any leftover to the last child (fills rounding gaps)
-  if remaining > 0 and n > 0 then sizes[n] = sizes[n] + remaining end
+
+  -- reconcile rounding: push leftover into the last child (kept >=1)
+  local tot = 0
+  for _, sz in ipairs(sizes) do tot = tot + sz end
+  sizes[n] = math.max(1, sizes[n] + (avail - tot))
 
   local pos = horizontal and x or y
   for i, ch in ipairs(vis) do
@@ -1072,8 +1088,58 @@ local function drawScreen(s)
     elseif ACTIVE.modal.kind == "sections" then drawSectionsModal() end
   end
 end
+-- Computer terminal: live status + controls not tied to any monitor.
+local function drawTerminal()
+  local tw, th = term.getSize()
+  term.setBackgroundColor(colors.black); term.setTextColor(colors.white); term.clear()
+  local function line(y, txt, col)
+    term.setCursorPos(1, y); term.setTextColor(col or colors.white)
+    term.write(tostring(txt):sub(1, tw))
+  end
+  local d = state.data
+  line(1, "colony_dashboard v" .. VERSION .. "  \183 running", colors.yellow)
+  if d then
+    line(2, ("Colony: %s  #%s"):format(d.name, d.id), colors.white)
+    line(3, ("Happy %.1f/10   Pop %d/%d   Idle %d"):format(d.happiness, d.pop, d.maxPop, d.idle),
+      d.idle > 0 and colors.orange or colors.white)
+    local threat = d.attack and "UNDER ATTACK" or (d.raid and "RAID INCOMING" or "Secure")
+    line(4, ("Threat: %s    Sites %d  Graves %d"):format(threat, d.sites, d.graves),
+      (d.attack or d.raid) and colors.red or colors.lime)
+    line(5, ("Workers to place: %d    Requests: %d [%s]"):format(#d.suggestions, #d.requests, d.reqMode),
+      d.reqMode == "AUTO" and colors.lime or colors.lightGray)
+    line(6, ("Bridge: %s   Storage: %s"):format(bridge and "yes" or "NO", storage and "yes" or "NO"),
+      (bridge and storage) and colors.white or colors.gray)
+  else
+    line(2, "scanning...", colors.gray)
+  end
+  line(8, "Monitors (press number to reassign screen):", colors.cyan)
+  local y = 9
+  for i, s in ipairs(screens) do
+    if y > th - 3 then break end
+    line(y, ("[%d] %-12s %dx%d  -> screen %d"):format(i, s.name, s.W, s.H, s.cfgIdx or 1), colors.white)
+    y = y + 1
+  end
+  line(th - 2, ("Theme: %s     next scan: %ds"):format(CONFIG.theme, state.countdown), colors.lightGray)
+  line(th - 1, "[r]escan  [t]heme  [1-9]reassign  [q]uit", colors.lightGray)
+  line(th, state.msg or "", colors.gray)
+end
+
 local function redrawAll()
   for _, s in ipairs(screens) do drawScreen(s) end
+  drawTerminal()
+end
+
+-- Cycle which CONFIG.screens layout a given monitor uses (fixes wrong monitor
+-- getting the dense layout). Persisted per monitor.
+local function reassignScreen(i)
+  local s = screens[i]; if not s then return end
+  s.cfgIdx = ((s.cfgIdx or 1) % #CONFIG.screens) + 1
+  local cfg = CONFIG.screens[s.cfgIdx]
+  s.layout = cfg.layout
+  s.enabled = {}
+  if type(cfg.enabled) == "table" then for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end end
+  s.scroll = {}; s.modal = nil
+  saveSettings()
 end
 
 ----------------------------------------------------------------------------
@@ -1120,8 +1186,18 @@ while true do
     if state.countdown <= 0 and not anyModal then rescan() end
     redrawAll()
     tick = os.startTimer(1)
-  elseif e == "char" and ev[2] == "q" then
-    break
+  elseif e == "char" then
+    local ch = ev[2]
+    if ch == "q" then
+      break
+    elseif ch == "r" then
+      rescan(); redrawAll()
+    elseif ch == "t" then
+      state.themeIdx = (state.themeIdx % #THEME_ORDER) + 1
+      applyTheme(THEME_ORDER[state.themeIdx]); saveSettings(); redrawAll()
+    elseif ch:match("%d") then
+      reassignScreen(tonumber(ch)); redrawAll()
+    end
   elseif e == "monitor_resize" then
     local s = screenByName[ev[2]]
     if s then s.W, s.H = s.mon.getSize() end
