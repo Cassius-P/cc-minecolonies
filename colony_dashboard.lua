@@ -95,34 +95,57 @@ local CONFIG = {
   logToFile = false,             -- write auto-fulfill warnings to a log file
 }
 
--- Job scoring: primary/secondary skills per building type.
+-- Job scoring: {primary, secondary} skills. Keys are the building `type` the
+-- colony_integrator reports. Verified against minecolonies.com/wiki (2026-07);
+-- primary counts double toward level-up, so primary/secondary ORDER matters.
+-- Aliases are included so both the building-type and job-name forms resolve.
 local JOB_SKILLS = {
-  builder = { "Knowledge", "Adaptability" }, deliveryman = { "Agility", "Adaptability" },
-  courier = { "Agility", "Adaptability" }, farmer = { "Stamina", "Athletics" },
-  fisherman = { "Focus", "Agility" }, lumberjack = { "Strength", "Focus" },
-  miner = { "Strength", "Stamina" }, smelter = { "Athletics", "Strength" },
-  composter = { "Stamina", "Athletics" }, cook = { "Adaptability", "Knowledge" },
-  baker = { "Knowledge", "Dexterity" }, cowboy = { "Athletics", "Stamina" },
-  shepherd = { "Athletics", "Stamina" }, swineherd = { "Athletics", "Stamina" },
-  chickenherd = { "Adaptability", "Athletics" }, rabbitherd = { "Agility", "Athletics" },
-  beekeeper = { "Dexterity", "Adaptability" }, guard = { "Adaptability", "Strength" },
-  knight = { "Adaptability", "Strength" }, archer = { "Agility", "Adaptability" },
-  blacksmith = { "Knowledge", "Strength" }, stonemason = { "Knowledge", "Dexterity" },
-  sawmill = { "Knowledge", "Dexterity" }, carpenter = { "Knowledge", "Dexterity" },
-  fletcher = { "Dexterity", "Creativity" }, glassblower = { "Creativity", "Dexterity" },
-  dyer = { "Creativity", "Dexterity" }, concretemixer = { "Creativity", "Dexterity" },
-  sifter = { "Focus", "Strength" }, florist = { "Dexterity", "Agility" },
-  crusher = { "Strength", "Stamina" }, enchanter = { "Mana", "Knowledge" },
-  university = { "Knowledge", "Mana" }, researcher = { "Knowledge", "Mana" },
-  healer = { "Mana", "Knowledge" }, netherworker = { "Adaptability", "Strength" },
-  planter = { "Agility", "Dexterity" },
+  builder      = { "Adaptability", "Athletics" },   -- was Knowledge/Adaptability (wrong)
+  deliveryman  = { "Agility", "Adaptability" }, courier = { "Agility", "Adaptability" },
+  farmer       = { "Stamina", "Athletics" },
+  fisherman    = { "Focus", "Agility" },
+  lumberjack   = { "Strength", "Focus" }, forester = { "Strength", "Focus" },
+  miner        = { "Strength", "Stamina" },
+  quarry       = { "Strength", "Stamina" }, quarrier = { "Strength", "Stamina" },
+  smeltery     = { "Athletics", "Strength" }, smelter = { "Athletics", "Strength" },
+  composter    = { "Stamina", "Athletics" },
+  cook         = { "Adaptability", "Knowledge" }, restaurant = { "Adaptability", "Knowledge" },
+  baker        = { "Knowledge", "Dexterity" }, bakery = { "Knowledge", "Dexterity" },
+  cowboy       = { "Athletics", "Stamina" },
+  shepherd     = { "Focus", "Strength" },           -- was Athletics/Stamina (wrong)
+  swineherd    = { "Athletics", "Stamina" },        -- unverified (wiki 404); pig herder
+  chickenherder = { "Adaptability", "Agility" }, chickenherd = { "Adaptability", "Agility" },
+  rabbithutch  = { "Agility", "Athletics" }, rabbitherd = { "Agility", "Athletics" },
+  beekeeper    = { "Dexterity", "Adaptability" }, apiary = { "Dexterity", "Adaptability" },
+  knight       = { "Adaptability", "Stamina" },     -- was Adaptability/Strength (wrong)
+  archer       = { "Agility", "Adaptability" },
+  guardtower   = { "Adaptability", "Stamina" },     -- default knight; may be a ranger
+  barracks     = { "Adaptability", "Stamina" },
+  blacksmith   = { "Strength", "Focus" },           -- was Knowledge/Strength (wrong)
+  stonemason   = { "Creativity", "Dexterity" },     -- was Knowledge/Dexterity (wrong)
+  sawmill      = { "Knowledge", "Dexterity" }, carpenter = { "Knowledge", "Dexterity" },
+  fletcher     = { "Dexterity", "Creativity" },
+  glassblower  = { "Creativity", "Focus" },         -- was Creativity/Dexterity (wrong)
+  dyer         = { "Creativity", "Dexterity" },
+  concretemixer = { "Stamina", "Dexterity" },       -- was Creativity/Dexterity (wrong)
+  sifter       = { "Focus", "Strength" },
+  plantation   = { "Agility", "Dexterity" }, planter = { "Agility", "Dexterity" },
+  crusher      = { "Stamina", "Strength" },         -- was Strength/Stamina (swapped)
+  enchanter    = { "Mana", "Knowledge" },
+  university   = { "Knowledge", "Mana" }, researcher = { "Knowledge", "Mana" },
+  hospital     = { "Mana", "Knowledge" }, healer = { "Mana", "Knowledge" },
+  netherworker = { "Adaptability", "Strength" },
+  mechanic     = { "Knowledge", "Agility" },        -- added
+  druid        = { "Mana", "Focus" },               -- added
+  florist      = { "Dexterity", "Agility" }, flowershop = { "Dexterity", "Agility" }, -- unverified
 }
 local JOB_MAX_SLOTS = {
   deliveryman = function(l) return math.max(1, l or 1) end,
-  courier = function(l) return math.max(1, l or 1) end,
-  guard = function(l) return math.max(1, l or 1) end,
-  knight = function(l) return math.max(1, l or 1) end,
-  archer = function(l) return math.max(1, l or 1) end,
+  courier     = function(l) return math.max(1, l or 1) end,
+  guardtower  = function(l) return math.max(1, l or 1) end,
+  barracks    = function(l) return math.max(1, l or 1) end,
+  knight      = function(l) return math.max(1, l or 1) end,
+  archer      = function(l) return math.max(1, l or 1) end,
 }
 local function maxSlotsFor(t, level)
   local v = JOB_MAX_SLOTS[t]
@@ -383,50 +406,81 @@ local function lastWord(str) return string.match(str or "", "%S+$") end
 --* SUGGESTIONS
 ----------------------------------------------------------------------------
 
+-- Greedy allocation: each idle citizen appears in at most ONE suggestion, and
+-- open slots are filled by their best-scoring idle candidate first, then any
+-- remaining idle citizens can replace an under-skilled worker in a full hut.
 local function computeSuggestions(citizens, buildings)
   local byId, idle = {}, {}
   for _, c in ipairs(citizens) do byId[c.id] = c end
   for _, c in ipairs(citizens) do if isUnemployed(c) then idle[#idle + 1] = c end end
 
-  local function bestIdleFor(p, s)
-    local best, bs = nil, -1
-    for _, c in ipairs(idle) do
-      local sc = scoreFor(c, p, s)
-      if sc > bs then best, bs = c, sc end
-    end
-    return best, bs
-  end
-
-  local out = {}
+  -- Classify job buildings into those with an open slot vs. full.
+  local openSlots, fullB = {}, {}
   for _, b in ipairs(buildings) do
     local jk = b.type or jobKey(b.name)
-    if jk and JOB_SKILLS[jk] and b.built ~= false then
-      local pr, se = JOB_SKILLS[jk][1], JOB_SKILLS[jk][2]
+    local sk = jk and JOB_SKILLS[jk]
+    if sk and b.built ~= false then
       local workers = (type(b.citizens) == "table") and b.citizens or {}
-      local cand, cs = bestIdleFor(pr, se)
-      if cand then
-        if #workers < maxSlotsFor(jk, b.level) then
-          out[#out + 1] = { kind = "assign", job = jk,
-            building = { location = b.location },
-            candidate = { name = cand.name, id = cand.id, score = cs }, gain = cs }
-        else
-          local weak, ws = nil, math.huge
-          for _, w in ipairs(workers) do
-            local full = byId[w.id]
-            local s = full and scoreFor(full, pr, se) or 0
-            if s < ws then weak, ws = w, s end
-          end
-          if weak and (cs - ws) >= REPLACE_MARGIN then
-            out[#out + 1] = { kind = "replace", job = jk,
-              building = { location = b.location },
-              candidate = { name = cand.name, id = cand.id, score = cs },
-              target = { name = weak.name, id = weak.id, score = ws }, gain = cs - ws }
-          end
-        end
-      end
+      local rec = { jk = jk, pr = sk[1], se = sk[2], loc = b.location, workers = workers }
+      local free = maxSlotsFor(jk, b.level) - #workers
+      if free > 0 then rec.free = free; openSlots[#openSlots + 1] = rec else fullB[#fullB + 1] = rec end
     end
   end
-  table.sort(out, function(a, b) return a.gain > b.gain end)
+
+  local used, out = {}, {}   -- used[citizenId] = already placed in a suggestion
+
+  -- ASSIGN: rank every (idle citizen, open slot) pair; take best first.
+  local prs = {}
+  for _, slot in ipairs(openSlots) do
+    for _, c in ipairs(idle) do
+      prs[#prs + 1] = { c = c, slot = slot, score = scoreFor(c, slot.pr, slot.se) }
+    end
+  end
+  table.sort(prs, function(a, b) return a.score > b.score end)
+  for _, p in ipairs(prs) do
+    if not used[p.c.id] and p.slot.free > 0 then
+      used[p.c.id] = true
+      p.slot.free = p.slot.free - 1
+      out[#out + 1] = { kind = "assign", job = p.slot.jk, building = { location = p.slot.loc },
+        candidate = { name = p.c.name, id = p.c.id, score = p.score }, gain = p.score }
+    end
+  end
+
+  -- REPLACE: for each full hut, weakest worker vs. best still-unused idle citizen.
+  local repl = {}
+  for _, fb in ipairs(fullB) do
+    local weak, ws = nil, math.huge
+    for _, w in ipairs(fb.workers) do
+      local full = byId[w.id]
+      local s = full and scoreFor(full, fb.pr, fb.se) or 0
+      if s < ws then weak, ws = w, s end
+    end
+    local cand, cs = nil, -1
+    for _, c in ipairs(idle) do
+      if not used[c.id] then
+        local s = scoreFor(c, fb.pr, fb.se)
+        if s > cs then cand, cs = c, s end
+      end
+    end
+    if weak and cand and (cs - ws) >= REPLACE_MARGIN then
+      repl[#repl + 1] = { fb = fb, weak = weak, ws = ws, cand = cand, cs = cs, gain = cs - ws }
+    end
+  end
+  table.sort(repl, function(a, b) return a.gain > b.gain end)
+  for _, r in ipairs(repl) do
+    if not used[r.cand.id] then
+      used[r.cand.id] = true
+      out[#out + 1] = { kind = "replace", job = r.fb.jk, building = { location = r.fb.loc },
+        candidate = { name = r.cand.name, id = r.cand.id, score = r.cs },
+        target = { name = r.weak.name, id = r.weak.id, score = r.ws }, gain = r.gain }
+    end
+  end
+
+  -- Fill empty slots first (assign), then replacements, each by descending gain.
+  table.sort(out, function(a, b)
+    if a.kind ~= b.kind then return a.kind == "assign" end
+    return a.gain > b.gain
+  end)
   while #out > MAX_SUGGESTIONS do table.remove(out) end
   return out
 end
