@@ -35,6 +35,9 @@ local function cleanName(s)
   s = tostring(s or "?")
   s = s:match("([^:]+)$") or s      -- strip "namespace:" prefix if present
   s = s:gsub("[_/]", " "):gsub("%s+", " ")
+  s = s:gsub("^%s+", ""):gsub("%s+$", "")
+  local dup = s:match("^(.+) %1$")   -- collapse "Courier's Hut Courier's Hut"
+  if dup then s = dup end
   s = s:gsub("(%a)([%w']*)", function(a, b) return a:upper() .. b end)
   return s
 end
