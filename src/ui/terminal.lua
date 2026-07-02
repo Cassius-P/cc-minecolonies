@@ -94,7 +94,7 @@ function M._update(ui, ctx, state, screens)
     ui.lUpd:setText(("* Update available: v%s -> v%s"):format(up.localv, up.remote)):setForeground(colors.orange)
     ui.updBtn:setText("Install update"):setBackground(colors.green):setForeground(colors.black)
   elseif up then
-    ui.lUpd:setText(("Up to date (v%s)"):format(up.remote or ctx.version)):setForeground(colors.green)
+    ui.lUpd:setText(("No new update available (v%s)"):format(up.localv or ctx.version)):setForeground(colors.green)
     ui.updBtn:setText("Check for update"):setBackground(colors.blue):setForeground(colors.white)
   else
     ui.lUpd:setText("Version " .. ctx.version .. " - not checked yet"):setForeground(colors.lightGray)
