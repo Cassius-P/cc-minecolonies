@@ -36,6 +36,27 @@ M.SECTION_ORDER = SECTION_ORDER
 -- Geometry from the two columns
 ----------------------------------------------------------------------------
 
+-- Ensure screen.columns is two clean lists holding every section exactly once.
+-- Tolerates a missing/old config (e.g. preserved config.lua from a prior
+-- version that used the flexbox layout instead of columns).
+function M.normalizeColumns(screen)
+  local cols = type(screen.columns) == "table" and screen.columns or {}
+  cols[1] = type(cols[1]) == "table" and cols[1] or {}
+  cols[2] = type(cols[2]) == "table" and cols[2] or {}
+  local seen = {}
+  for ci = 1, 2 do
+    local clean = {}
+    for _, id in ipairs(cols[ci]) do
+      if SECTIONS[id] and not seen[id] then seen[id] = true; clean[#clean + 1] = id end
+    end
+    cols[ci] = clean
+  end
+  for _, id in ipairs(SECTION_ORDER) do
+    if not seen[id] then table.insert(cols[1], id); seen[id] = true end
+  end
+  screen.columns = cols
+end
+
 -- Enabled sections in a column, in order.
 local function enabledIn(screen, ci)
   local out = {}
@@ -73,6 +94,7 @@ end
 
 -- Position/size/show the section frames from the current columns.
 function M.applyRects(screen)
+  M.normalizeColumns(screen)
   local rects = computeRects(screen)
   for _, id in ipairs(SECTION_ORDER) do
     local sf, sd, r = screen.secFrames[id], screen.secDisp[id], rects[id]
