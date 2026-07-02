@@ -441,7 +441,7 @@ end
 local function scrollArrows(id, x, y, w, count, visible, scroll)
   local maxOff = math.max(0, count - visible)
   if count <= visible then return scroll end
-  if scroll > maxOff then scroll = maxOff end
+  if (scroll[id] or 0) > maxOff then scroll[id] = maxOff end
   put(x + w - 7, y, " \24 ", C.btnText, C.btnOk)
   addButton(x + w - 7, y, x + w - 5, y, function() scroll[id] = math.max(0, (scroll[id] or 0) - 1) end)
   put(x + w - 4, y, " \25 ", C.btnText, C.btnOk)
