@@ -1,9 +1,9 @@
 ----------------------------------------------------------------------------
--- ui/sections/orders.lua -- queued work orders.
+-- ui/sections/orders.lua -- queued work orders, grouped by type.
 --
--- Each row: a claim dot (green = claimed by a builder, orange = waiting), a
--- colour-coded action verb (Build / Upgrade / Repair / Remove), the target
--- building name, and the target level on the right.
+-- Orders are grouped under a coloured type header (Build / Upgrade / Repair /
+-- Remove). Each order row: a claim dot (green claimed / orange waiting), the
+-- target building name, and the target level on the right.
 ----------------------------------------------------------------------------
 
 local draw  = require("ui.draw")
@@ -15,13 +15,15 @@ local cap = util.capitalize
 local M = {}
 M.title = "Work Orders"
 
+local GROUP_ORDER = { "Build", "Upgrade", "Repair", "Remove" }
+
 local function verb(t)
   t = tostring(t or ""):lower()
   if t:find("upgrade") then return "Upgrade", C.accent
   elseif t:find("repair") then return "Repair", C.warn
   elseif t:find("remov") or t:find("deconstruct") then return "Remove", C.bad
   elseif t:find("build") or t:find("create") then return "Build", C.good
-  else return cap(t == "" and "Order" or t), C.accent2 end
+  else return "Other", C.accent2 end
 end
 
 local function trunc(s, n) return #s > n and s:sub(1, math.max(0, n)) or s end
@@ -32,33 +34,51 @@ function M.draw(x, y, w, h, screen, d)
   for _, o in ipairs(list) do if o.isClaimed then claimed = claimed + 1 end end
 
   local cx, cy, cw, ch = draw.card(x, y, w, h, string.format("WORK ORDERS (%d)", #list))
-  -- claimed/total badge on the title bar, right side
   if #list > 0 then
     local badge = ("%d/%d claimed"):format(claimed, #list)
     draw.put(x + w - #badge - 8, y, badge, claimed == #list and C.good or C.dim, C.cardTitle)
   end
-  screen.scroll = draw.scrollArrows("orders", x, y, w, #list, ch, screen.scroll)
   if #list == 0 then draw.put(cx, cy, "None queued.", C.dim, C.card); return end
 
+  -- Group by type.
+  local groups, gcol = {}, {}
+  for _, o in ipairs(list) do
+    local v, col = verb(o.workOrderType or o.type)
+    groups[v] = groups[v] or {}; gcol[v] = col
+    table.insert(groups[v], o)
+  end
+  local verbs, seen = {}, {}
+  for _, v in ipairs(GROUP_ORDER) do if groups[v] then verbs[#verbs + 1] = v; seen[v] = true end end
+  for v in pairs(groups) do if not seen[v] then verbs[#verbs + 1] = v end end
+
+  -- Flatten to display rows (header + orders + gaps between groups).
+  local rows = {}
+  for gi, v in ipairs(verbs) do
+    if gi > 1 then rows[#rows + 1] = { kind = "gap" } end
+    rows[#rows + 1] = { kind = "head", verb = v, col = gcol[v], n = #groups[v] }
+    for _, o in ipairs(groups[v]) do rows[#rows + 1] = { kind = "order", o = o } end
+  end
+
+  screen.scroll = draw.scrollArrows("orders", x, y, w, #rows, ch, screen.scroll)
   local off = screen.scroll.orders or 0
   for i = 1, ch do
-    local o = list[i + off]
-    if not o then break end
+    local r = rows[i + off]
+    if not r then break end
     local ry = cy + i - 1
-    local v, vc = verb(o.workOrderType or o.type)
-    local name = cap(util.jobKey(o.buildingName or o.structureName or o.name or "?") or "?")
-    local lvl = o.targetLevel and ("L" .. tostring(o.targetLevel)) or ""
-
-    -- claim dot
-    draw.put(cx, ry, "\7", o.isClaimed and C.good or C.warn, C.card)
-    -- verb (coloured by action)
-    draw.put(cx + 2, ry, v, vc, C.card)
-    -- target name, clipped to leave room for the level
-    local nameX = cx + 2 + #v + 1
-    local room = (cx + cw - #lvl - 1) - nameX
-    draw.put(nameX, ry, trunc(name, room), C.text, C.card)
-    -- level on the right
-    if lvl ~= "" then draw.put(cx + cw - #lvl, ry, lvl, C.dim, C.card) end
+    if r.kind == "gap" then
+      -- blank
+    elseif r.kind == "head" then
+      draw.put(cx, ry, trunc(("%s (%d)"):format(r.verb, r.n), cw), r.col, C.card)
+    else
+      local o = r.o
+      local name = cap(util.jobKey(o.buildingName or o.structureName or o.name or "?") or "?")
+      local lvl = o.targetLevel and ("L" .. tostring(o.targetLevel)) or ""
+      draw.put(cx + 1, ry, "\7", o.isClaimed and C.good or C.warn, C.card)
+      local nameX = cx + 3
+      local room = (cx + cw - #lvl - 1) - nameX
+      draw.put(nameX, ry, trunc(name, room), C.text, C.card)
+      if lvl ~= "" then draw.put(cx + cw - #lvl, ry, lvl, C.dim, C.card) end
+    end
   end
 end
 
