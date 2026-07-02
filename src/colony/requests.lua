@@ -43,13 +43,13 @@ end
 
 -- Domum Ornamentum blocks carry two texture materials in item components. The
 -- recipe wording varies by block (frame/center, pillar/base, ...), so use
--- generic PRIMARY / SECONDARY. Returns e.g.
--- "Framed Cream Bricks (Spruce Log + Cream Bricks)".
-local function domumLabel(it)
+-- generic PRIMARY / SECONDARY. Returns (baseName, materialsString) -- the
+-- materials string is nil when none are present. Non-domum -> nil.
+local function domumInfo(it)
   if type(it.name) ~= "string" or not it.name:find("^domum_ornamentum:") then return nil end
   local td = it.components and it.components["domum_ornamentum:texture_data"]
   local base = (it.displayName or it.name):gsub("^%[", ""):gsub("%]$", "")
-  if type(td) ~= "table" then return base end
+  if type(td) ~= "table" then return base, nil end
   -- Known slot order (primary then secondary), then any other slots. Blocks may
   -- have just one material -- that is fine, we simply list what is present.
   local SLOT_ORDER = { "minecraft:block/oak_planks", "minecraft:block/dark_oak_planks" }
@@ -60,8 +60,8 @@ local function domumLabel(it)
   for k, v in pairs(td) do
     if not seen[k] then mats[#mats + 1] = prettyMat(v) end
   end
-  if #mats == 0 then return base end
-  return base .. " (" .. table.concat(mats, " + ") .. ")"
+  if #mats == 0 then return base, nil end
+  return base, table.concat(mats, " + ")
 end
 
 -- "Leather -> Chain", "up to Chain", "Leather+", or "Any".
@@ -100,7 +100,9 @@ function M.categorize(rawRequests, log)
         base.displayLabel = bi .. " (" .. rangeText(minL, maxL) .. ")"
         equipment[#equipment + 1] = base
       else
-        base.displayLabel = domumLabel(req.items[1])  -- nil for non-domum
+        local dbase, dmats = domumInfo(req.items[1])  -- nil for non-domum
+        base.displayLabel = dbase
+        base.materials = dmats
         if string.find(base.target, "Builder") then
           builder[#builder + 1] = base
         else
