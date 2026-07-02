@@ -56,7 +56,6 @@ Everything is touch-driven on the monitor, plus a few keys on the computer.
 
 | Button | Does |
 |--------|------|
-| `REFRESH` | Re-scan the colony now |
 | `THEME` | Switch color theme (applies to every monitor) |
 | `SECTIONS` | Show/hide sections on this monitor |
 | `EDIT` | Rearrange: `- +` resize a section, arrows move it up/down |

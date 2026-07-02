@@ -118,7 +118,6 @@ function M.start(cfgModule)
   end
 
   hooks.save        = function() settings.save(config, screens) end
-  hooks.requestScan = function() rescan() end
   hooks.cycleTheme  = function()
     local n = theme.cycle(config)
     theme.apply(n, screens, config); state.theme = n

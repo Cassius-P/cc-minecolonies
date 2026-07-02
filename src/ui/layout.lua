@@ -113,7 +113,6 @@ local function drawFooter(screen, data, state, hooks)
   local W, H = screen.W, screen.H
   draw.fillRect(1, H, W, 1, C.cardTitle)
   local x = 2
-  x = draw.button(x, H, "REFRESH", C.btnOk, C.btnText, function() hooks.requestScan() end) + 1
   x = draw.button(x, H, "THEME", C.accent, colors.black, function() hooks.cycleTheme() end) + 1
   x = draw.button(x, H, "SECTIONS", C.btn, C.btnText, function() screen.modal = { kind = "sections" } end) + 1
   x = draw.button(x, H, screen.edit and "EDIT*" or "EDIT", screen.edit and C.good or C.accent2, colors.black,
