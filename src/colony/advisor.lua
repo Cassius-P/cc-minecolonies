@@ -102,50 +102,72 @@ function M.computeSuggestions(citizens, buildings, margins)
     end
   end
 
-  -- REASSIGN: an employed citizen who fits another job much better. Considers
-  -- both remaining open slots and full huts (displacing the weakest worker).
-  local moves = {}
-  for _, slot in ipairs(openSlots) do
-    if slot.free > 0 then
-      for _, e in ipairs(employed) do
-        if not used[e.c.id] and e.jc ~= slot.jk then
-          local sNew = scoreFor(e.c, slot.pr, slot.se)
-          local imp = sNew - e.cur
-          if imp >= REASS then
-            moves[#moves + 1] = { slot = slot, e = e, sNew = sNew, benefit = imp, open = true }
-          end
-        end
-      end
-    end
+  -- REASSIGN: move an employed citizen toward their SINGLE best-fit job (the
+  -- job type present in the colony where they score highest). Only moving
+  -- toward a citizen's best fit guarantees each applied move raises their score,
+  -- so suggestions converge instead of oscillating (e.g. builder->guard->builder).
+  local recsByJob = {}   -- jk -> { open = {recs w/ free}, full = {recs} }
+  for _, rec in ipairs(openSlots) do
+    recsByJob[rec.jk] = recsByJob[rec.jk] or { open = {}, full = {} }
+    table.insert(recsByJob[rec.jk].open, rec)
   end
-  for _, fb in ipairs(fullB) do
+  for _, rec in ipairs(fullB) do
+    recsByJob[rec.jk] = recsByJob[rec.jk] or { open = {}, full = {} }
+    table.insert(recsByJob[rec.jk].full, rec)
+  end
+
+  local function weakestOf(rec)
     local weak, ws = nil, math.huge
-    for _, w in ipairs(fb.workers) do
+    for _, w in ipairs(rec.workers) do
       local full = byId[w.id]
-      local s = full and scoreFor(full, fb.pr, fb.se) or 0
+      local s = full and scoreFor(full, rec.pr, rec.se) or 0
       if s < ws then weak, ws = w, s end
     end
-    for _, e in ipairs(employed) do
-      if not used[e.c.id] and weak and weak.id ~= e.c.id and e.jc ~= fb.jk then
-        local sNew = scoreFor(e.c, fb.pr, fb.se)
-        local imp = sNew - e.cur
-        if imp > 0 and (sNew - ws) >= math.max(REPL, REASS) then
-          moves[#moves + 1] = { slot = fb, e = e, sNew = sNew, weak = weak, ws = ws,
-            benefit = sNew - ws, open = false }
-        end
-      end
+    return weak, ws
+  end
+
+  -- Best-fit job per employed citizen.
+  local cands = {}
+  for _, e in ipairs(employed) do
+    local bestJk, bestScore = nil, -1
+    for jk in pairs(recsByJob) do
+      local sk = JOB_SKILLS[jk]
+      local s = scoreFor(e.c, sk[1], sk[2])
+      if s > bestScore then bestScore, bestJk = s, jk end
+    end
+    if bestJk and bestJk ~= e.jc and (bestScore - e.cur) >= REASS then
+      cands[#cands + 1] = { e = e, jk = bestJk, score = bestScore, gain = bestScore - e.cur }
     end
   end
-  table.sort(moves, function(a, b) return a.benefit > b.benefit end)
-  for _, m in ipairs(moves) do
+  table.sort(cands, function(a, b) return a.gain > b.gain end)
+
+  for _, m in ipairs(cands) do
     if not used[m.e.c.id] then
-      used[m.e.c.id] = true
-      if m.open and m.slot.free then m.slot.free = m.slot.free - 1 end
-      out[#out + 1] = { kind = "reassign", job = m.slot.jk, from = m.e.jc,
-        building = { location = m.slot.loc },
-        candidate = { name = m.e.c.name, id = m.e.c.id, score = m.sNew },
-        target = m.weak and { name = m.weak.name, id = m.weak.id, score = m.ws } or nil,
-        gain = m.benefit }
+      local rj = recsByJob[m.jk]
+      local target
+      for _, rec in ipairs(rj.open) do if rec.free > 0 then target = rec; break end end
+      if target then
+        used[m.e.c.id] = true
+        target.free = target.free - 1
+        out[#out + 1] = { kind = "reassign", job = m.jk, from = m.e.jc,
+          building = { location = target.loc },
+          candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score }, gain = m.gain }
+      else
+        -- No open slot: displace the weakest worker of the best full hut, if the
+        -- gap clears the margin (and that worker isn't the same citizen).
+        local bestRec, bWeak, bWs = nil, nil, math.huge
+        for _, rec in ipairs(rj.full) do
+          local w, ws = weakestOf(rec)
+          if w and w.id ~= m.e.c.id and ws < bWs then bestRec, bWeak, bWs = rec, w, ws end
+        end
+        if bestRec and (m.score - bWs) >= math.max(REPL, REASS) then
+          used[m.e.c.id] = true
+          out[#out + 1] = { kind = "reassign", job = m.jk, from = m.e.jc,
+            building = { location = bestRec.loc },
+            candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score },
+            target = { name = bWeak.name, id = bWeak.id, score = bWs }, gain = m.score - bWs }
+        end
+      end
     end
   end
 
