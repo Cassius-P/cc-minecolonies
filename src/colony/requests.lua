@@ -9,8 +9,8 @@ local trimLead = util.trimLead
 local M = {}
 
 local EQUIPMENT_KEYWORDS = {
-  "Sword ", "Bow ", "Pickaxe ", "Axe ", "Shovel ", "Hoe ", "Shears ",
-  "Helmet ", "Chestplate ", "Leggings ", "Boots ", "Shield",
+  "Sword", "Bow", "Pickaxe", "Axe", "Shovel", "Hoe", "Shears",
+  "Helmet", "Chestplate", "Leggings", "Boots", "Shield",
 }
 
 function M.isEquipment(desc)
@@ -20,15 +20,30 @@ function M.isEquipment(desc)
   return false
 end
 
-local LEVEL_TABLE = {
-  ["and with maximal level: Leather"] = "Leather",
-  ["and with maximal level: Stone"]   = "Stone",
-  ["and with maximal level: Chain"]   = "Chain",
-  ["and with maximal level: Gold"]    = "Gold",
-  ["and with maximal level: Iron"]    = "Iron",
-  ["and with maximal level: Diamond"] = "Diamond",
-  ["with maximal level: Wood or Gold"] = "Wood or Gold",
-}
+-- The equipment type word (Boots, Sword, ...) mentioned in the text.
+local function baseItem(s)
+  for _, k in ipairs(EQUIPMENT_KEYWORDS) do if string.find(s, k) then return k end end
+  return nil
+end
+
+-- Parse "minimal level: X" / "maximal level: X" (X may be e.g. "Wood or Gold").
+local function levelWord(s, which)
+  local v = s:match(which .. " level:%s*(%a[%a ]-)%s+and with")
+    or s:match(which .. " level:%s*(%a[%a ]-)%.?%s*$")
+    or s:match(which .. " level:%s*(%a+)")
+  if v then v = v:gsub("%s+$", "") end
+  return v
+end
+
+-- "Leather -> Chain", "up to Chain", "Leather+", or "Any".
+local function rangeText(minL, maxL)
+  if minL and maxL then
+    if minL == maxL then return maxL end
+    return minL .. " -> " .. maxL
+  elseif maxL then return "up to " .. maxL
+  elseif minL then return minL .. "+"
+  else return "Any" end
+end
 
 -- categorize(rawRequests, log) -> equipment, builder, others
 function M.categorize(rawRequests, log)
@@ -44,12 +59,16 @@ function M.categorize(rawRequests, log)
         displayColor = colors.white, level = "",
       }
       if isEq then
-        local level = "Any Level"
-        for pat, mapped in pairs(LEVEL_TABLE) do
-          if string.find(base.desc, pat) then level = mapped; break end
-        end
-        base.name = level .. " " .. req.name
+        local bi = baseItem(base.desc) or baseItem(req.name) or req.name
+        local minL = levelWord(base.desc, "minimal")
+        local maxL = levelWord(base.desc, "maximal")
+        local level = maxL or "Any Level"
+        base.name = (maxL and (maxL .. " ") or "") .. req.name  -- keep for crafting
         base.level = level
+        base.minLevel = minL
+        base.maxLevel = maxL
+        base.equipPiece = bi
+        base.displayLabel = bi .. " (" .. rangeText(minL, maxL) .. ")"
         equipment[#equipment + 1] = base
       elseif string.find(base.target, "Builder") then
         builder[#builder + 1] = base

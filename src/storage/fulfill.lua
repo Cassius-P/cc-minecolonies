@@ -1,32 +1,49 @@
 ----------------------------------------------------------------------------
 -- storage/fulfill.lua -- CCxM auto-fulfill core.
 --
--- Exports colony requests from an ME/RS bridge to the warehouse inventory and
--- queues crafts for what is missing. Peripherals are passed in (found by
--- network name), so this works with the bridge/inventory anywhere on a
--- wired-modem network. Sets item.displayColor for the UI legend.
+-- Exports colony requests from an ME/RS bridge to the warehouse and queues
+-- crafts for what is missing. For equipment requested as a level RANGE
+-- (e.g. Boots Leather -> Chain), it tries every material in the range and
+-- picks one that is in stock, else one that is craftable -- instead of a single
+-- random pick. Peripherals are passed in (found by network name), so it works
+-- over a wired-modem network. Sets item.displayColor for the legend.
 ----------------------------------------------------------------------------
-
-local util = require("common.util")
-local lastWord = util.lastWord
 
 local M = {}
 
 local quantityField = nil  -- "amount" (ME) or "count" (RS), detected once
 
--- Map an equipment request to a concrete craftable item id, honouring the
--- configured equipmentLevel. Returns (itemName, craftAllowed).
-local function equipmentCraft(name, level, item_name, want)
-  if item_name == "minecraft:bow" then return item_name, true end
-  if (level == "Iron" or level == "Iron and Diamond" or level == "Any Level")
-      and (want == "Iron" or want == "Iron and Diamond") then
-    if level == "Any Level" then level = "Iron" end
-    return string.lower("minecraft:" .. level .. "_" .. lastWord(name)), true
-  elseif (level == "Diamond" or level == "Iron and Diamond" or level == "Any Level") and want == "Diamond" then
-    if level == "Any Level" then level = "Diamond" end
-    return string.lower("minecraft:" .. level .. "_" .. lastWord(name)), true
+-- Equipment material tiers (low -> high) and a rough level rank for range filtering.
+local ARMOR_PART = { Helmet = "helmet", Chestplate = "chestplate", Leggings = "leggings", Boots = "boots" }
+local TOOL_PART  = { Sword = "sword", Pickaxe = "pickaxe", Axe = "axe", Shovel = "shovel", Hoe = "hoe" }
+local SPECIAL    = { Bow = "minecraft:bow", Shears = "minecraft:shears", Shield = "minecraft:shield" }
+local ARMOR_MATS = { "leather", "golden", "chainmail", "iron", "diamond", "netherite" }
+local TOOL_MATS  = { "wooden", "golden", "stone", "iron", "diamond", "netherite" }
+local RANK = { Wood = 1, Leather = 1, Gold = 2, Chain = 2, Stone = 3, Iron = 4, Diamond = 5, Netherite = 6 }
+local MAT_RANK = { leather = 1, wooden = 1, golden = 2, chainmail = 2, stone = 3, iron = 4, diamond = 5, netherite = 6 }
+local CAP_RANK = { ["Iron"] = 4, ["Diamond"] = 5, ["Iron and Diamond"] = 5 }
+
+-- Candidate item ids for an equipment request, within [min,max] and the config cap.
+local function equipCandidates(item, af)
+  local piece = item.equipPiece
+  if not piece then return { item.item_name } end
+  if SPECIAL[piece] then return { SPECIAL[piece] } end
+  local part = ARMOR_PART[piece]
+  local mats = part and ARMOR_MATS
+  if not part then part = TOOL_PART[piece]; mats = part and TOOL_MATS end
+  if not part then return { item.item_name } end
+
+  local lo = (item.minLevel and RANK[item.minLevel]) or 1
+  local hi = (item.maxLevel and RANK[item.maxLevel]) or 99
+  hi = math.min(hi, CAP_RANK[af.equipmentLevel] or 99)
+
+  local out = {}
+  for _, m in ipairs(mats) do
+    local r = MAT_RANK[m] or 99
+    if r >= lo and r <= hi then out[#out + 1] = "minecraft:" .. m .. "_" .. part end
   end
-  return item_name, false
+  if #out == 0 then out[1] = item.item_name end  -- fall back to the requested item
+  return out
 end
 
 local function detectQuantityField(bridge, itemName)
@@ -38,6 +55,28 @@ local function detectQuantityField(bridge, itemName)
   return nil
 end
 
+-- Query stored amount + craftability for one item id.
+local function stockOf(bridge, name)
+  local d
+  local ok = pcall(function() d = bridge.getItem({ name = name }) end)
+  if not ok or type(d) ~= "table" then return nil end
+  return (d[quantityField] or 0), d.isCraftable
+end
+
+local function domum(name) return string.sub(name, 1, 17) == "domum_ornamentum:" end
+
+-- Export up to `count` of `name` to storage; returns amount provided.
+local function doExport(bridge, storage, name, count)
+  local provided = 0
+  local ok = pcall(function()
+    provided = bridge.exportItemToPeripheral({ name = name, count = count }, storage)
+  end)
+  if not ok then
+    pcall(function() provided = bridge.exportItem({ name = name, count = count }, storage) end)
+  end
+  return provided or 0
+end
+
 -- handle(list, ctx): ctx = { bridge, storage, config, log }
 function M.handle(list, ctx)
   local bridge, storage = ctx.bridge, ctx.storage
@@ -47,60 +86,60 @@ function M.handle(list, ctx)
   for _, n in ipairs(af.skipItems or {}) do skip[n] = true end
 
   for _, item in ipairs(list) do
-    local stored, crafting, eqOk = 0, false, true
     if skip[item.item_name] then
       item.displayColor = colors.gray
       goto continue
     end
-    if item.equipment then
-      item.item_name, eqOk = equipmentCraft(item.name, item.level, item.item_name, af.equipmentLevel)
-    end
-    if not quantityField then quantityField = detectQuantityField(bridge, item.item_name) end
 
-    local gotItem = pcall(function()
-      local d = bridge.getItem({ name = item.item_name })
-      stored = d[quantityField] or 0
-      item.isCraftable = d.isCraftable
-    end)
-    if not gotItem then
-      log.write(item.item_displayName .. " not in system or craftable.")
-      item.displayColor = colors.red
-      if string.sub(item.item_name, 1, 17) == "domum_ornamentum:" then item.displayColor = colors.lightBlue end
-      goto continue
+    -- Candidate item ids to satisfy this request.
+    local candidates = item.equipment and equipCandidates(item, af) or { item.item_name }
+    if not quantityField then quantityField = detectQuantityField(bridge, candidates[1]) end
+
+    -- Pass 1: pick the first candidate that is in stock and export it.
+    local stocked, craftId
+    for _, id in ipairs(candidates) do
+      local st, cr = stockOf(bridge, id)
+      if st == nil then
+        -- unknown; treat as not present
+      else
+        if st > 0 and not stocked then stocked = id end
+        if cr and not craftId then craftId = id end
+      end
     end
 
-    if stored ~= 0 then
-      local exported = pcall(function()
-        item.provided = bridge.exportItemToPeripheral({ name = item.item_name, count = item.count }, storage)
-      end) or pcall(function()
-        item.provided = bridge.exportItem({ name = item.item_name, count = item.count }, storage)
-      end)
-      if not exported then item.displayColor = colors.yellow end
-      if item.provided == item.count then
-        item.displayColor = colors.green
-        if string.sub(item.item_name, 1, 17) == "domum_ornamentum:" then item.displayColor = colors.lightBlue end
+    if stocked then
+      item.item_name = stocked
+      item.provided = doExport(bridge, storage, stocked, item.count)
+      if item.provided >= item.count then
+        item.displayColor = domum(stocked) and colors.lightBlue or colors.green
       else
         item.displayColor = colors.yellow
       end
+      if item.provided >= item.count then goto continue end
     end
 
-    if not af.equipment and item.equipment then goto continue end
-    if not af.craftMissing then goto continue end
-
-    if (item.provided < item.count) and item.isCraftable and eqOk then
-      log.safeCall(function() crafting = bridge.isItemCrafting({ name = item.item_name }) end)
-      if crafting then item.displayColor = colors.blue; goto continue end
+    -- Pass 2: craft a craftable candidate for the shortfall.
+    if not af.craftMissing then
+      if not stocked then item.displayColor = colors.red end
+      goto continue
     end
+    if item.equipment and not af.equipment then goto continue end
 
-    if not crafting and item.isCraftable and (item.provided < item.count) then
-      local ok = log.safeCall(function()
-        return bridge.craftItem({ name = item.item_name, count = item.count - item.provided })
-      end)
-      if not ok then
-        item.displayColor = colors.yellow
+    if craftId and (item.provided or 0) < item.count then
+      local crafting = false
+      log.safeCall(function() crafting = bridge.isItemCrafting({ name = craftId }) end)
+      if crafting then
+        item.item_name = craftId; item.displayColor = colors.blue
         goto continue
       end
-      item.displayColor = colors.blue
+      local ok = log.safeCall(function()
+        return bridge.craftItem({ name = craftId, count = item.count - (item.provided or 0) })
+      end)
+      item.item_name = craftId
+      item.displayColor = ok and colors.blue or colors.yellow
+    elseif not stocked then
+      log.write((item.displayLabel or item.item_displayName or item.item_name) .. " not in system or craftable.")
+      item.displayColor = domum(item.item_name) and colors.lightBlue or colors.red
     end
 
     ::continue::

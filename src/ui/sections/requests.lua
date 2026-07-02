@@ -27,7 +27,7 @@ function M.draw(x, y, w, h, screen, d)
     local ry = cy + i - 1
     local qty = (it.provided or 0) .. "/" .. it.count
     local tgt = tostring(it.target or "")
-    local left = qty .. " " .. (it.item_displayName or it.name)
+    local left = qty .. " " .. (it.displayLabel or it.item_displayName or it.name)
     local room = cw - #tgt - 1
     draw.put(cx, ry, left:sub(1, math.max(0, room)), it.displayColor or C.text, C.card)
     if #tgt > 0 then draw.put(cx + cw - #tgt, ry, tgt, C.dim, C.card) end
