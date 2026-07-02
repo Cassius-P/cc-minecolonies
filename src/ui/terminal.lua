@@ -38,6 +38,13 @@ function M.render(win, ctx)
     line(2, "scanning...", colors.gray)
   end
 
+  local up = ctx.state.update
+  if up and up.available then
+    line(7, ("* Update available: v%s -> v%s   (type 'update')"):format(up.localv, up.remote), colors.orange)
+  elseif up then
+    line(7, ("Up to date (v%s)"):format(up.remote or ctx.version), colors.green)
+  end
+
   line(8, "Monitors (press number to reassign screen):", colors.cyan)
   local y = 9
   for i, s in ipairs(ctx.screens) do

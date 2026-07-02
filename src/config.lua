@@ -14,6 +14,10 @@ M.config = {
   theme          = "deepslate",   -- deepslate | smooth_stone | sandstone | basalt (GLOBAL)
   refreshSeconds = 5,
 
+  -- Source repo for the "update available" check on the computer screen.
+  -- Keep in sync with REPO in install.lua / update.lua.
+  repo = { owner = "Cassius-P", repo = "cc-minecolonies", branch = "main" },
+
   -- Optional peripheral overrides. Leave nil to auto-discover across the
   -- wired-modem network. Set a network name to pin a specific remote (see the
   -- computer terminal's peripheral list, or `peripheral.getNames()`).

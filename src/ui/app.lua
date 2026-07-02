@@ -13,6 +13,7 @@ local util     = require("common.util")
 local log      = require("common.log")
 local perif    = require("common.peripherals")
 local settings = require("common.settings")
+local updater  = require("common.updater")
 local theme    = require("ui.theme")
 local draw     = require("ui.draw")
 local layout   = require("ui.layout")
@@ -40,7 +41,7 @@ function M.start(cfgModule)
   -- State
   ----------------------------------------------------------------------------
   local state = { data = nil, msg = "", countdown = config.refreshSeconds,
-    quit = false, needScan = false, theme = config.theme }
+    quit = false, needScan = false, theme = config.theme, update = nil }
   local screens, screenByName = {}, {}
 
   ----------------------------------------------------------------------------
@@ -90,6 +91,11 @@ function M.start(cfgModule)
     end
     state.needScan = false
     state.countdown = config.refreshSeconds
+  end
+
+  local function checkUpdate()
+    local ok, res = pcall(updater.check, config)
+    if ok and type(res) == "table" then state.update = res end
   end
 
   local termWin
@@ -186,6 +192,15 @@ function M.start(cfgModule)
       for _, s in ipairs(screens) do if s.modal then anyModal = true; break end end
       if state.countdown <= 0 and not anyModal then rescan() end
       redrawAll()
+    end
+  end)
+
+  -- Update check: once at startup, then hourly. Terminal shows the indicator.
+  basalt.schedule(function()
+    checkUpdate(); redrawAll()
+    while true do
+      sleep(3600)
+      checkUpdate(); redrawAll()
     end
   end)
 

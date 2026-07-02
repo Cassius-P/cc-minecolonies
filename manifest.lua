@@ -25,6 +25,7 @@ return {
     { src = "src/common/log.lua",         dst = "/common/log.lua" },
     { src = "src/common/peripherals.lua", dst = "/common/peripherals.lua" },
     { src = "src/common/settings.lua",    dst = "/common/settings.lua" },
+    { src = "src/common/updater.lua",     dst = "/common/updater.lua" },
     -- colony
     { src = "src/colony/skills.lua",   dst = "/colony/skills.lua" },
     { src = "src/colony/advisor.lua",  dst = "/colony/advisor.lua" },
