@@ -19,6 +19,11 @@ function M.load(config, screens, isTheme)
   if not (ok and type(t) == "table") then return end
 
   if type(t.theme) == "string" and isTheme(t.theme) then config.theme = t.theme end
+  if type(t.suggestions) == "table" then
+    config.suggestions = config.suggestions or {}
+    if type(t.suggestions.replaceMargin) == "number" then config.suggestions.replaceMargin = t.suggestions.replaceMargin end
+    if type(t.suggestions.reassignMargin) == "number" then config.suggestions.reassignMargin = t.suggestions.reassignMargin end
+  end
   if type(t.screens) ~= "table" then return end
 
   for _, s in ipairs(screens) do
@@ -41,7 +46,7 @@ function M.load(config, screens, isTheme)
 end
 
 function M.save(config, screens)
-  local out = { theme = config.theme, screens = {} }
+  local out = { theme = config.theme, suggestions = config.suggestions, screens = {} }
   for _, s in ipairs(screens) do
     out.screens[s.name] = { enabled = s.enabled, cfgIdx = s.cfgIdx,
       columns = s.columns, weights = s.weights }

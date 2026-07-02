@@ -46,6 +46,19 @@ function M.build(mainFrame, ctx)
   ui.tbPerif = pt:addTextBox({ x = 2, y = 3, width = tw - 3, height = th - 5,
     editable = false, background = colors.black, foreground = colors.white })
 
+  -- Settings --------------------------------------------------------------
+  local se = tabs:newTab("Settings")
+  se:addLabel({ x = 2, y = 1, width = tw - 2, foreground = colors.yellow })
+    :setText("Suggestion thresholds (skill gap to suggest a move)")
+  ui.lReplace  = se:addLabel({ x = 2, y = 3, width = tw - 2 })
+  ui.lReassign = se:addLabel({ x = 2, y = 4, width = tw - 2 })
+  se:addLabel({ x = 2, y = 6, width = tw - 2, foreground = colors.lightGray })
+    :setText("Keys:  z / x  replace margin -/+")
+  se:addLabel({ x = 2, y = 7, width = tw - 2, foreground = colors.lightGray })
+    :setText("       c / v  reassign margin -/+")
+  se:addLabel({ x = 2, y = 9, width = tw - 2, foreground = colors.gray })
+    :setText("0 = suggest every improvement; higher = only big wins.")
+
   -- Update ----------------------------------------------------------------
   local ut = tabs:newTab("Update")
   ui.lUpd = ut:addLabel({ x = 2, y = 2, width = tw - 2 })
@@ -89,6 +102,10 @@ function M._update(ui, ctx, state, screens)
   local pl = {}
   for _, p in ipairs(perif.diagnostics()) do pl[#pl + 1] = ("%s : %s"):format(p.name, p.type) end
   ui.tbPerif:setText(table.concat(pl, "\n"))
+
+  local sg = ctx.config.suggestions or {}
+  ui.lReplace:setText(("Replace margin  : %d"):format(sg.replaceMargin or 1)):setForeground(colors.white)
+  ui.lReassign:setText(("Reassign margin : %d"):format(sg.reassignMargin or 1)):setForeground(colors.white)
 
   local up = state.update
   if state.checking then

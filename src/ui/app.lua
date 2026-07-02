@@ -128,6 +128,14 @@ function M.start(cfgModule)
     end)
   end
 
+  local function setMargin(key, delta)
+    config.suggestions = config.suggestions or { replaceMargin = 1, reassignMargin = 1 }
+    local cur = config.suggestions[key] or 1
+    config.suggestions[key] = math.max(0, math.min(20, cur + delta))
+    settings.save(config, screens)
+    rescan(); redrawAll()   -- margins change the suggestions
+  end
+
   local function reassignScreen(i)
     local s = screens[i]; if not s then return end
     s.cfgIdx = ((s.cfgIdx or 1) % #config.screens) + 1
@@ -205,6 +213,14 @@ function M.start(cfgModule)
       doCheck()
     elseif ch == "i" then
       doInstall()
+    elseif ch == "z" then
+      setMargin("replaceMargin", -1)
+    elseif ch == "x" then
+      setMargin("replaceMargin", 1)
+    elseif ch == "c" then
+      setMargin("reassignMargin", -1)
+    elseif ch == "v" then
+      setMargin("reassignMargin", 1)
     elseif type(ch) == "string" and ch:match("%d") then
       reassignScreen(tonumber(ch)); redrawAll()
     end

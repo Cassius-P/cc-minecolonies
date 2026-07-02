@@ -302,6 +302,18 @@ local function applyModal(screen, s, data)
       { " 1. Go to " .. locStr(s.building.location), C.dim },
       { " 2. Open hut GUI \26 Hire/Fire", C.dim }, { " 3. Slot in " .. s.candidate.name, C.dim },
     }
+  elseif s.kind == "reassign" then
+    lines = {
+      { "Move:     " .. s.candidate.name, C.note },
+      { "From job: " .. tostring(s.from), C.text },
+      { "To job:   " .. s.job .. " (fit " .. s.candidate.score .. ")", C.good },
+      { "At:       " .. locStr(s.building.location), C.text },
+      { "Manual steps:", C.accent2 },
+      { " 1. Fire " .. s.candidate.name .. " from their " .. tostring(s.from) .. " hut", C.dim },
+      { " 2. Go to " .. locStr(s.building.location), C.dim },
+      { " 3. " .. (s.target and ("Fire " .. s.target.name .. ", hire " .. s.candidate.name)
+          or ("Hire " .. s.candidate.name)), C.dim },
+    }
   else
     lines = {
       { "Job:      " .. s.job, C.text }, { "Building: " .. locStr(s.building.location), C.text },

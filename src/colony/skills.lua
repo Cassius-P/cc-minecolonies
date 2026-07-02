@@ -10,7 +10,8 @@
 
 local M = {}
 
-M.REPLACE_MARGIN   = 3
+M.REPLACE_MARGIN   = 3   -- min skill gap to replace an idle citizen into a full hut
+M.REASSIGN_MARGIN  = 4   -- min improvement to move an employed citizen to a better job
 M.PRIMARY_WEIGHT   = 1.0
 M.SECONDARY_WEIGHT = 0.5
 M.MAX_SUGGESTIONS  = 60
@@ -56,15 +57,14 @@ M.JOB_SKILLS = {
   florist      = { "Dexterity", "Agility" }, flowershop = { "Dexterity", "Agility" }, -- unverified
 }
 
--- Buildings whose worker capacity scales with level (guards, couriers). The
--- API does not expose capacity, so it is configured here; default is 1.
+-- Buildings whose worker capacity scales with level. The colony_integrator
+-- exposes no per-building capacity, so it is configured here (verified against
+-- minecolonies.com/wiki, 2026-07). Default is 1; standalone Guard Towers and
+-- Courier's Huts hold exactly 1 (they do NOT scale).
+local function levelCap5(l) return math.max(1, math.min(5, l or 1)) end
 local JOB_MAX_SLOTS = {
-  deliveryman = function(l) return math.max(1, l or 1) end,
-  courier     = function(l) return math.max(1, l or 1) end,
-  guardtower  = function(l) return math.max(1, l or 1) end,
-  barracks    = function(l) return math.max(1, l or 1) end,
-  knight      = function(l) return math.max(1, l or 1) end,
-  archer      = function(l) return math.max(1, l or 1) end,
+  university    = levelCap5, researcher = levelCap5,  -- 1 researcher per level, max 5
+  barracks      = levelCap5, barrackstower = levelCap5, -- 1 guard per level, max 5
 }
 
 function M.maxSlotsFor(t, level)

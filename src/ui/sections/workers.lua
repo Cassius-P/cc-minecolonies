@@ -25,7 +25,9 @@ local function drawRosterRow(rx, ry, colW, r)
   elseif r.kind == "head" then
     draw.put(rx, ry, trunc(string.format("%s (%d/%d)", cap(r.building), r.filled, r.max), colW), C.accent2, C.card)
   elseif r.kind == "worker" then
-    if r.status == "replace" then
+    if r.status == "reassign" then
+      draw.put(rx, ry, trunc(" " .. r.name .. " \26 " .. cap(r.to), colW), C.note, C.card)
+    elseif r.status == "replace" then
       draw.put(rx, ry, trunc(" " .. r.name .. " \26 " .. r.repl, colW), C.warn, C.card)
     else
       draw.put(rx, ry, trunc(" " .. r.name .. " ok", colW), C.good, C.card)
@@ -54,15 +56,17 @@ function M.draw(x, y, w, h, screen, d)
     for i = 1, maxSug do
       if row > bottom then break end
       local s = sugs[i]
-      local txt
+      local txt, col
       if s.kind == "assign" then
-        txt = ("assign %s \26 %s"):format(s.candidate.name, cap(s.job))
+        txt = ("assign %s \26 %s"):format(s.candidate.name, cap(s.job)); col = C.good
+      elseif s.kind == "reassign" then
+        txt = ("%s: %s \26 %s"):format(s.candidate.name, cap(s.from), cap(s.job)); col = C.note
       else
-        txt = ("%s \26 %s (rep %s)"):format(s.candidate.name, cap(s.job), s.target.name)
+        txt = ("%s \26 %s (rep %s)"):format(s.candidate.name, cap(s.job), s.target.name); col = C.warn
       end
       -- Highlight + make the WHOLE row the clickable action.
       draw.fillRect(cx, row, cw, 1, C.cardTitle)
-      draw.put(cx + 1, row, "\16 " .. trunc(txt, cw - 3), s.kind == "assign" and C.good or C.warn, C.cardTitle)
+      draw.put(cx + 1, row, "\16 " .. trunc(txt, cw - 3), col, C.cardTitle)
       draw.addButton(cx, row, cx + cw - 1, row, function() screen.modal = { kind = "apply", sug = s } end)
       row = row + 1
     end

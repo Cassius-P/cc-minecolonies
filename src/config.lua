@@ -8,7 +8,7 @@
 
 local M = {}
 
-M.VERSION = "3.14"
+M.VERSION = "3.15"
 
 M.config = {
   theme          = "deepslate",   -- deepslate | smooth_stone | sandstone | basalt (GLOBAL)
@@ -57,6 +57,14 @@ M.config = {
         { "status", "workforce", "workers", "jobskills" },
       },
     },
+  },
+
+  -- Suggestion thresholds (skill-gap needed before a move is suggested).
+  -- Higher = fewer, only-big-win suggestions; 0 = suggest every improvement.
+  -- Adjustable live on the computer's Settings tab.
+  suggestions = {
+    replaceMargin  = 1,   -- idle citizen must beat a full-hut worker by this much
+    reassignMargin = 1,   -- employed citizen must improve by this much to move jobs
   },
 
   autofulfill = {

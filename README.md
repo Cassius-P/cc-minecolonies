@@ -110,6 +110,10 @@ Open `config.lua` on the computer (it's kept safe across updates). Common tweaks
 - `refreshSeconds` — how often to re-scan.
 - `screens` — per monitor: `enabled` (which sections show) and `columns` (the
   two ordered lists of sections). Extra monitors reuse the last screen's layout.
+- `suggestions` — `replaceMargin` / `reassignMargin`: the skill gap needed
+  before a move is suggested (default 1; 0 = suggest every improvement, higher =
+  only big wins). Adjust live on the computer's **Settings** tab with `z`/`x`
+  (replace) and `c`/`v` (reassign).
 - `autofulfill` — the storage rules above.
 - `peripherals` — usually leave blank; set a device's network name here only if
   you have several and want to pick a specific one. The computer screen lists

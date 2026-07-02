@@ -1,12 +1,16 @@
 ----------------------------------------------------------------------------
 -- colony/advisor.lua -- citizen->job matching.
 --
--- computeSuggestions: greedy allocation so each idle citizen appears in at
--- most ONE suggestion; open slots take their best-scoring idle candidate
--- first, then remaining idle citizens may replace an under-skilled worker in a
--- full hut (only if the skill gain clears REPLACE_MARGIN).
--- computeRoster: flatten every job building + its workers + empty slots into
--- display rows tagged ok / replace / assign / empty.
+-- computeSuggestions produces three kinds of suggestion (each citizen appears
+-- at most once):
+--   * assign   - an idle citizen fills an open slot.
+--   * replace  - an idle citizen replaces an under-skilled worker in a full hut.
+--   * reassign - an EMPLOYED citizen would be a much better fit at another job
+--                (open slot, or displacing a weaker worker there).
+-- computeRoster flattens every building + workers into display rows.
+--
+-- margins = { replace = n, reassign = n } gate replace/reassign (skill-gap
+-- thresholds); they fall back to the skills defaults when omitted.
 ----------------------------------------------------------------------------
 
 local util   = require("common.util")
@@ -18,10 +22,23 @@ local scoreFor = skills.scoreFor
 
 local M = {}
 
-function M.computeSuggestions(citizens, buildings)
+function M.computeSuggestions(citizens, buildings, margins)
+  local REPL = (margins and margins.replace) or skills.REPLACE_MARGIN
+  local REASS = (margins and margins.reassign) or skills.REASSIGN_MARGIN
+
   local byId, idle = {}, {}
   for _, c in ipairs(citizens) do byId[c.id] = c end
   for _, c in ipairs(citizens) do if skills.isUnemployed(c) then idle[#idle + 1] = c end end
+
+  -- Employed citizens with a known job, and their score at that job.
+  local employed = {}
+  for _, c in ipairs(citizens) do
+    if not skills.isUnemployed(c) then
+      local jc = type(c.work) == "table" and c.work.type
+      local sk = jc and JOB_SKILLS[jc]
+      if sk then employed[#employed + 1] = { c = c, jc = jc, cur = scoreFor(c, sk[1], sk[2]) } end
+    end
+  end
 
   -- Classify job buildings into those with an open slot vs. full.
   local openSlots, fullB = {}, {}
@@ -71,7 +88,7 @@ function M.computeSuggestions(citizens, buildings)
         if s > cs then cand, cs = c, s end
       end
     end
-    if weak and cand and (cs - ws) >= skills.REPLACE_MARGIN then
+    if weak and cand and (cs - ws) >= REPL then
       repl[#repl + 1] = { fb = fb, weak = weak, ws = ws, cand = cand, cs = cs, gain = cs - ws }
     end
   end
@@ -85,9 +102,57 @@ function M.computeSuggestions(citizens, buildings)
     end
   end
 
-  -- Fill empty slots first (assign), then replacements, each by descending gain.
+  -- REASSIGN: an employed citizen who fits another job much better. Considers
+  -- both remaining open slots and full huts (displacing the weakest worker).
+  local moves = {}
+  for _, slot in ipairs(openSlots) do
+    if slot.free > 0 then
+      for _, e in ipairs(employed) do
+        if not used[e.c.id] and e.jc ~= slot.jk then
+          local sNew = scoreFor(e.c, slot.pr, slot.se)
+          local imp = sNew - e.cur
+          if imp >= REASS then
+            moves[#moves + 1] = { slot = slot, e = e, sNew = sNew, benefit = imp, open = true }
+          end
+        end
+      end
+    end
+  end
+  for _, fb in ipairs(fullB) do
+    local weak, ws = nil, math.huge
+    for _, w in ipairs(fb.workers) do
+      local full = byId[w.id]
+      local s = full and scoreFor(full, fb.pr, fb.se) or 0
+      if s < ws then weak, ws = w, s end
+    end
+    for _, e in ipairs(employed) do
+      if not used[e.c.id] and weak and weak.id ~= e.c.id and e.jc ~= fb.jk then
+        local sNew = scoreFor(e.c, fb.pr, fb.se)
+        local imp = sNew - e.cur
+        if imp > 0 and (sNew - ws) >= math.max(REPL, REASS) then
+          moves[#moves + 1] = { slot = fb, e = e, sNew = sNew, weak = weak, ws = ws,
+            benefit = sNew - ws, open = false }
+        end
+      end
+    end
+  end
+  table.sort(moves, function(a, b) return a.benefit > b.benefit end)
+  for _, m in ipairs(moves) do
+    if not used[m.e.c.id] then
+      used[m.e.c.id] = true
+      if m.open and m.slot.free then m.slot.free = m.slot.free - 1 end
+      out[#out + 1] = { kind = "reassign", job = m.slot.jk, from = m.e.jc,
+        building = { location = m.slot.loc },
+        candidate = { name = m.e.c.name, id = m.e.c.id, score = m.sNew },
+        target = m.weak and { name = m.weak.name, id = m.weak.id, score = m.ws } or nil,
+        gain = m.benefit }
+    end
+  end
+
+  -- Order: assign, then replace, then reassign; each by descending gain.
+  local rank = { assign = 1, replace = 2, reassign = 3 }
   table.sort(out, function(a, b)
-    if a.kind ~= b.kind then return a.kind == "assign" end
+    if rank[a.kind] ~= rank[b.kind] then return rank[a.kind] < rank[b.kind] end
     return a.gain > b.gain
   end)
   while #out > skills.MAX_SUGGESTIONS do table.remove(out) end
@@ -97,10 +162,15 @@ end
 function M.computeRoster(citizens, buildings, sugs)
   local byId = {}
   for _, c in ipairs(citizens) do byId[c.id] = c end
-  local assignAt, replaceAt = {}, {}
+  local assignAt, replaceAt, reassignAt = {}, {}, {}
   for _, s in ipairs(sugs) do
-    local k = locStr(s.building.location)
-    if s.kind == "assign" then assignAt[k] = s else replaceAt[k] = s end
+    if s.kind == "assign" then
+      assignAt[locStr(s.building.location)] = s
+    elseif s.kind == "replace" then
+      replaceAt[locStr(s.building.location)] = s
+    elseif s.kind == "reassign" then
+      reassignAt[s.candidate.id] = s   -- keyed by the citizen who should move
+    end
   end
 
   local flat = {}
@@ -112,17 +182,20 @@ function M.computeRoster(citizens, buildings, sugs)
       local k = locStr(b.location)
       local workers = (type(b.citizens) == "table") and b.citizens or {}
       local maxS = maxSlotsFor(jk, b.level)
-      if #flat > 0 then flat[#flat + 1] = { kind = "gap" } end  -- blank row between jobs
       flat[#flat + 1] = { kind = "head", building = jk, filled = #workers, max = maxS }
       for _, w in ipairs(workers) do
-        local full = byId[w.id]
-        local sc = full and scoreFor(full, pr, se) or 0
+        local rea = reassignAt[w.id]
         local rep = replaceAt[k]
-        if rep and rep.target and rep.target.id == w.id then
+        if rea then
+          flat[#flat + 1] = { kind = "worker", name = w.name, status = "reassign",
+            to = rea.job, sug = rea }
+        elseif rep and rep.target and rep.target.id == w.id then
           flat[#flat + 1] = { kind = "worker", name = w.name, status = "replace",
             repl = rep.candidate.name, sug = rep }
         else
-          flat[#flat + 1] = { kind = "worker", name = w.name, status = "ok", score = sc }
+          local full = byId[w.id]
+          flat[#flat + 1] = { kind = "worker", name = w.name, status = "ok",
+            score = full and scoreFor(full, pr, se) or 0 }
         end
       end
       for i = 1, (maxS - #workers) do

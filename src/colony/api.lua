@@ -36,7 +36,10 @@ function M.gather(ctx)
     total = #citizens, employed = employed, idle = idle, buildings = #buildings,
     visitors = type(visitors) == "table" and #visitors or 0,
     orders = type(orders) == "table" and orders or {},
-    suggestions = advisor.computeSuggestions(citizens, buildings),
+    suggestions = advisor.computeSuggestions(citizens, buildings, {
+      replace  = config.suggestions and config.suggestions.replaceMargin or 1,
+      reassign = config.suggestions and config.suggestions.reassignMargin or 1,
+    }),
   }
   d.roster = advisor.computeRoster(citizens, buildings, d.suggestions)
 
