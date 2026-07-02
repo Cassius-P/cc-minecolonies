@@ -18,8 +18,7 @@ function M.draw(x, y, w, h, screen, d)
   local cx, cy, cw, ch = draw.card(x, y, w, h, "COLONY STATUS")
   local barH = math.max(1, ch - 1)          -- last inner row holds labels
   local gap = 2
-  -- Widen the bars to use the space the removed text left behind.
-  local bw = math.max(3, math.floor((cw - gap - 12) / 2))
+  local bw = 6   -- previous width (3) doubled
   local hc = d.happiness >= 7 and C.good or (d.happiness >= 4 and C.warn or C.bad)
 
   -- Happiness bar (value on top, label under)
