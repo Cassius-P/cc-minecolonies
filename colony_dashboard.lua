@@ -288,6 +288,13 @@ local function activate(s)
   monitor, W, H, buttons = s.mon, s.W, s.H, s.buttons
 end
 
+local function deepCopy(t)
+  if type(t) ~= "table" then return t end
+  local c = {}
+  for k, v in pairs(t) do c[k] = deepCopy(v) end
+  return c
+end
+
 local function buildScreens()
   local monNames = {}
   for _, n in ipairs(peripheral.getNames()) do
@@ -307,7 +314,7 @@ local function buildScreens()
     local mon = peripheral.wrap(name)
     mon.setTextScale(sc.textScale or 0.5)
     local s = { mon = mon, name = name, buttons = {}, scroll = {}, modal = nil,
-      layout = sc.layout, enabled = {}, cfgIdx = cfgIdx }
+      layout = deepCopy(sc.layout), enabled = {}, cfgIdx = cfgIdx, edit = false }
     if type(sc.enabled) == "table" then for k, v in pairs(sc.enabled) do s.enabled[k] = v and true or false end end
     s.W, s.H = mon.getSize()
     screens[#screens + 1] = s
@@ -555,6 +562,51 @@ local function computeSuggestions(citizens, buildings)
   return out
 end
 
+-- Roster: every job building, its assigned workers tagged ok/replace, and its
+-- empty slots (with the suggested hire). Flattened to display rows.
+local function computeRoster(citizens, buildings, sugs)
+  local byId = {}
+  for _, c in ipairs(citizens) do byId[c.id] = c end
+  local assignAt, replaceAt = {}, {}
+  for _, s in ipairs(sugs) do
+    local k = locStr(s.building.location)
+    if s.kind == "assign" then assignAt[k] = s else replaceAt[k] = s end
+  end
+
+  local flat = {}
+  for _, b in ipairs(buildings) do
+    local jk = b.type or jobKey(b.name)
+    local sk = jk and JOB_SKILLS[jk]
+    if sk and b.built ~= false then
+      local pr, se = sk[1], sk[2]
+      local k = locStr(b.location)
+      local workers = (type(b.citizens) == "table") and b.citizens or {}
+      local maxS = maxSlotsFor(jk, b.level)
+      flat[#flat + 1] = { kind = "head", building = jk, filled = #workers, max = maxS }
+      for _, w in ipairs(workers) do
+        local full = byId[w.id]
+        local sc = full and scoreFor(full, pr, se) or 0
+        local rep = replaceAt[k]
+        if rep and rep.target and rep.target.id == w.id then
+          flat[#flat + 1] = { kind = "worker", name = w.name, status = "replace",
+            repl = rep.candidate.name, sug = rep }
+        else
+          flat[#flat + 1] = { kind = "worker", name = w.name, status = "ok", score = sc }
+        end
+      end
+      for i = 1, (maxS - #workers) do
+        local asg = assignAt[k]
+        if asg and i == 1 then
+          flat[#flat + 1] = { kind = "slot", status = "assign", cand = asg.candidate.name, sug = asg }
+        else
+          flat[#flat + 1] = { kind = "slot", status = "empty" }
+        end
+      end
+    end
+  end
+  return flat
+end
+
 ----------------------------------------------------------------------------
 --* REQUESTS + CCxM AUTO-FULFILL
 ----------------------------------------------------------------------------
@@ -720,6 +772,7 @@ local function gatherData()
     orders = type(orders) == "table" and orders or {},
     suggestions = computeSuggestions(citizens, buildings),
   }
+  d.roster = computeRoster(citizens, buildings, d.suggestions)
 
   -- Requests + optional auto-fulfill (CCxM).
   bridge = findStorageBridge()
@@ -768,8 +821,9 @@ local function loadSettings()
       if type(sc) == "table" then
         if type(sc.cfgIdx) == "number" and CONFIG.screens[sc.cfgIdx] then
           s.cfgIdx = sc.cfgIdx
-          s.layout = CONFIG.screens[sc.cfgIdx].layout
+          s.layout = deepCopy(CONFIG.screens[sc.cfgIdx].layout)
         end
+        if type(sc.layout) == "table" then s.layout = deepCopy(sc.layout) end
         if type(sc.enabled) == "table" then
           local en = {}
           for k, v in pairs(sc.enabled) do en[k] = v and true or false end
@@ -781,7 +835,7 @@ local function loadSettings()
 end
 local function saveSettings()
   local out = { theme = CONFIG.theme, screens = {} }
-  for _, s in ipairs(screens) do out.screens[s.name] = { enabled = s.enabled, cfgIdx = s.cfgIdx } end
+  for _, s in ipairs(screens) do out.screens[s.name] = { enabled = s.enabled, cfgIdx = s.cfgIdx, layout = s.layout } end
   local f = fs.open(SETTINGS_FILE, "w"); if not f then return end
   f.write(textutils.serialize(out)); f.close()
 end
@@ -829,23 +883,32 @@ end
 
 local function secSuggestions(x, y, w, h)
   local d = state.data
-  local list = d.suggestions
-  local cx, cy, cw, ch = card(x, y, w, h, string.format("WORKERS (%d)", #list))
+  local list = d.roster or {}
+  local cx, cy, cw, ch = card(x, y, w, h, string.format("WORKERS (%d to act)", #d.suggestions))
   ACTIVE.scroll = scrollArrows("suggestions", x, y, w, #list, ch, ACTIVE.scroll)
-  if #list == 0 then put(cx, cy, "All jobs optimally staffed.", C.good, C.card); return end
+  if #list == 0 then put(cx, cy, "No job buildings found.", C.dim, C.card); return end
   local off = ACTIVE.scroll.suggestions or 0
   for i = 1, ch do
-    local s = list[i + off]
-    if not s then break end
+    local r = list[i + off]
+    if not r then break end
     local ry = cy + i - 1
-    button(cx, ry, "DO", C.btn, C.btnText, function() ACTIVE.modal = { kind = "apply", sug = s } end)
-    local tx = cx + 5
-    if s.kind == "assign" then
-      -- worker should move into an open job
-      put(tx, ry, string.format("%s \26 %s", s.candidate.name, s.job), C.good, C.card)
-    else
-      -- worker should replace a weaker one already in that job
-      put(tx, ry, string.format("%s \26 %s  (replace %s)", s.candidate.name, s.job, s.target.name), C.warn, C.card)
+    if r.kind == "head" then
+      -- building header
+      put(cx, ry, string.format("%s (%d/%d)", r.building, r.filled, r.max), C.accent2, C.card)
+    elseif r.kind == "worker" then
+      if r.status == "replace" then
+        button(cx, ry, "DO", C.btn, C.btnText, function() ACTIVE.modal = { kind = "apply", sug = r.sug } end)
+        put(cx + 5, ry, string.format("%s \26 replace w/ %s", r.name, r.repl), C.warn, C.card)
+      else
+        put(cx + 3, ry, r.name .. "  ok", C.good, C.card)
+      end
+    else -- slot
+      if r.status == "assign" then
+        button(cx, ry, "DO", C.btn, C.btnText, function() ACTIVE.modal = { kind = "apply", sug = r.sug } end)
+        put(cx + 5, ry, "+ assign " .. r.cand, C.good, C.card)
+      else
+        put(cx + 3, ry, "+ (empty)", C.dim, C.card)
+      end
     end
   end
 end
@@ -931,18 +994,34 @@ local function countVisible(node)
   return n
 end
 
-local function layoutNode(node, x, y, w, h)
+-- Edit mode helpers: reorder a node among its siblings, resize its flex.
+local function moveNode(parent, ri, dir)
+  local j = ri + dir
+  if parent[j] then parent[ri], parent[j] = parent[j], parent[ri] end
+end
+local function editControls(node, parent, ri, x, y, w)
+  if not parent then return end
+  local bx = x + w - 13
+  if bx < x + 1 then bx = x + 1 end
+  bx = button(bx, y, "-", C.warn, C.btnText, function() node.flex = math.max(1, (node.flex or 1) - 2); saveSettings() end)
+  bx = button(bx, y, "+", C.good, C.btnText, function() node.flex = (node.flex or 1) + 2; saveSettings() end)
+  bx = button(bx, y, "\24", C.accent, colors.black, function() moveNode(parent, ri, -1); saveSettings() end)
+  bx = button(bx, y, "\25", C.accent, colors.black, function() moveNode(parent, ri, 1); saveSettings() end)
+end
+
+local function layoutNode(node, x, y, w, h, parent, ri)
   if w <= 0 or h <= 0 then return end
   if node.section then
     if not isEnabled(node.section) then return end
     local sec = SECTIONS[node.section]
     if sec then sec.draw(x, y, w, h) end
+    if ACTIVE.edit then editControls(node, parent, ri, x, y, w) end
     return
   end
 
   local horizontal = (node.dir == "row")
   local vis = {}
-  for _, ch in ipairs(node) do if countVisible(ch) > 0 then vis[#vis + 1] = ch end end
+  for i, ch in ipairs(node) do if countVisible(ch) > 0 then vis[#vis + 1] = { node = ch, ri = i } end end
   local n = #vis
   if n == 0 then return end
 
@@ -952,23 +1031,23 @@ local function layoutNode(node, x, y, w, h)
 
   local sizes = {}
   local sumMin, totalFlex = 0, 0
-  for _, ch in ipairs(vis) do sumMin = sumMin + (ch.min or 1); totalFlex = totalFlex + (ch.flex or 1) end
+  for _, e in ipairs(vis) do sumMin = sumMin + (e.node.min or 1); totalFlex = totalFlex + (e.node.flex or 1) end
 
   if sumMin <= avail then
     -- room for all mins: give each its min, share surplus by flex (capped at max)
     local surplus = avail - sumMin
-    for i, ch in ipairs(vis) do
-      local add = totalFlex > 0 and math.floor(surplus * (ch.flex or 1) / totalFlex) or 0
-      local sz = (ch.min or 1) + add
-      local mx = ch.max or math.huge
+    for i, e in ipairs(vis) do
+      local add = totalFlex > 0 and math.floor(surplus * (e.node.flex or 1) / totalFlex) or 0
+      local sz = (e.node.min or 1) + add
+      local mx = e.node.max or math.huge
       if sz > mx then sz = mx end
       sizes[i] = sz
     end
   else
     -- monitor too small for all mins: shrink proportionally but never below 1,
     -- so every enabled section still renders (clipped) instead of vanishing
-    for i, ch in ipairs(vis) do
-      sizes[i] = math.max(1, math.floor(avail * (ch.flex or 1) / math.max(1, totalFlex)))
+    for i, e in ipairs(vis) do
+      sizes[i] = math.max(1, math.floor(avail * (e.node.flex or 1) / math.max(1, totalFlex)))
     end
   end
 
@@ -978,10 +1057,11 @@ local function layoutNode(node, x, y, w, h)
   sizes[n] = math.max(1, sizes[n] + (avail - tot))
 
   local pos = horizontal and x or y
-  for i, ch in ipairs(vis) do
+  for i, e in ipairs(vis) do
     local s = sizes[i]
     if s > 0 then
-      if horizontal then layoutNode(ch, pos, y, s, h) else layoutNode(ch, x, pos, w, s) end
+      if horizontal then layoutNode(e.node, pos, y, s, h, node, e.ri)
+      else layoutNode(e.node, x, pos, w, s, node, e.ri) end
       pos = pos + s + GAP
     end
   end
@@ -1001,7 +1081,9 @@ local function drawFooter()
     applyTheme(THEME_ORDER[state.themeIdx])   -- global: re-palettes all monitors
     saveSettings()
   end) + 1
-  x = button(x, H, "SECTIONS", C.btn, C.btnText, function() ACTIVE.modal = { kind = "sections" } end) + 2
+  x = button(x, H, "SECTIONS", C.btn, C.btnText, function() ACTIVE.modal = { kind = "sections" } end) + 1
+  x = button(x, H, ACTIVE.edit and "EDIT*" or "EDIT", ACTIVE.edit and C.good or C.accent2, colors.black,
+    function() ACTIVE.edit = not ACTIVE.edit end) + 2
   -- colony/theme/countdown live on the right of the footer (header removed)
   local right = string.format("%s #%s  %s  %02ds", tostring(d.name), tostring(d.id), CONFIG.theme, state.countdown)
   put(W - #right - 1, H, right, C.dim, C.cardTitle)
@@ -1135,7 +1217,7 @@ local function reassignScreen(i)
   local s = screens[i]; if not s then return end
   s.cfgIdx = ((s.cfgIdx or 1) % #CONFIG.screens) + 1
   local cfg = CONFIG.screens[s.cfgIdx]
-  s.layout = cfg.layout
+  s.layout = deepCopy(cfg.layout)
   s.enabled = {}
   if type(cfg.enabled) == "table" then for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end end
   s.scroll = {}; s.modal = nil

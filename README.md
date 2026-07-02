@@ -21,9 +21,14 @@ Configurable all-in-one dashboard. Supersedes `colony_advisor.lua` +
 - **Flexbox layout** (per screen `layout`): a tree of `row`/`col` containers and
   section leaves. Each node takes `flex` (main-axis weight), `min`, `max`
   (main-axis clamp in cells); the cross axis fills. Reorder children to move a
-  section, change `flex`/`min`/`max` to resize.
-- **Enable/disable** sections via `CONFIG.enabled` or the on-screen `SECTIONS`
-  button; disabled sections drop out and their space is redistributed.
+  section, change `flex`/`min`/`max` to resize. Or use the **EDIT button** on the
+  monitor: each section gets `- +` (resize flex) and `↑ ↓` (move among siblings)
+  controls; changes persist per monitor.
+- **Workers** section is a full roster: every job building with its assigned
+  workers, each tagged `ok` or `→ replace w/ X` (a better idle citizen exists),
+  plus `+ assign X` / `+ (empty)` for open slots. `[DO]` opens the manual-hire card.
+- **Enable/disable** sections via each screen's `enabled` or the on-screen
+  `SECTIONS` button; disabled sections drop out and space is redistributed.
 - **Themes**: all four cc-mek-scada palettes (`deepslate`, `smooth_stone`,
   `sandstone`, `basalt`), set in `CONFIG.theme` or cycled with the `THEME` button.
   Theme is global — cycling it repaints every monitor. Section visibility is
