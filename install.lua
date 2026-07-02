@@ -24,7 +24,7 @@ local function ghSha()
   return (#s >= 7 and #s <= 64 and s:match("^%x+$")) and s or nil
 end
 
-local REF = ghSha() or REPO.branch  -- fall back to branch (may be CDN-cached ~5 min)
+local REF = refArg or ghSha() or REPO.branch  -- explicit SHA > API SHA > branch
 
 local function fetch(path)
   local suffix = (REF == REPO.branch) and ("?nocache=" .. (os.epoch and os.epoch("utc") or 0)) or ""
@@ -44,7 +44,13 @@ local function writeFile(dst, body)
   return true
 end
 
-local isUpdate = (({ ... })[1] == "update")
+-- Args: "update" (preserve config) and/or an explicit commit SHA to fetch from
+-- (skips the API entirely -- used by the manual bootstrap when rate-limited).
+local isUpdate, refArg = false, nil
+for _, a in ipairs({ ... }) do
+  if a == "update" then isUpdate = true
+  elseif type(a) == "string" and #a >= 7 and #a <= 40 and a:match("^%x+$") then refArg = a end
+end
 
 -- Manifest
 local mtext = fetch("manifest.lua")

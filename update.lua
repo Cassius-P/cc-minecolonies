@@ -73,4 +73,9 @@ if not body then error("Could not fetch install.lua", 0) end
 local f = fs.open("/install.lua", "w")
 f.write(body); f.close()
 
-shell.run("/install.lua", "update")
+-- Pass the resolved SHA so install fetches the SAME commit without another API call.
+if REF ~= REPO.branch then
+  shell.run("/install.lua", REF, "update")
+else
+  shell.run("/install.lua", "update")
+end
