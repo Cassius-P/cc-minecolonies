@@ -40,13 +40,22 @@ reboot
 After the reboot the dashboard starts on its own and draws to your monitors.
 (Hold any key during the 2-second boot message to skip auto-start.)
 
-**To update later**, just type:
+**To update later** — press **Install / update now** on the computer's *Update*
+tab, or type `update` at the shell:
 
 ```
 update
 ```
 
-Your settings and any changes you made to `config.lua` are kept.
+Either way it pulls the latest from GitHub and reboots. Your settings and any
+changes to `config.lua` are kept. The *Update* tab shows the installed version
+and whether a newer one is available (checked hourly).
+
+**To uninstall** — remove everything (files, settings, boot auto-launch):
+
+```
+uninstall
+```
 
 ## Using it
 

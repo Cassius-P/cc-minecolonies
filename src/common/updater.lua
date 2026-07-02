@@ -1,24 +1,31 @@
 ----------------------------------------------------------------------------
--- common/updater.lua -- check GitHub for a newer version.
+-- common/updater.lua -- installed version + GitHub update check.
 --
--- Compares the local /version stamp (written by install.lua) against the
--- version in the repo's manifest.lua. Network/parse failures return nil so the
--- indicator simply stays off when offline.
+-- Single source of truth for the *installed* version is the /version stamp
+-- written by install.lua (falls back to config.VERSION only when absent). The
+-- update check compares that stamp with the version in the repo's manifest.lua,
+-- fetched with cache-busting so a stale CDN copy doesn't mask a new release.
 ----------------------------------------------------------------------------
 
 local M = {}
 
-local function readLocal()
-  if not fs.exists("/version") then return nil end
-  local f = fs.open("/version", "r"); if not f then return nil end
-  local v = f.readAll(); f.close()
-  return (v:gsub("%s+", ""))
+-- Installed version = /version stamp, else fallback (config.VERSION).
+function M.installed(fallback)
+  if fs.exists("/version") then
+    local f = fs.open("/version", "r")
+    if f then
+      local v = f.readAll(); f.close()
+      v = (v:gsub("%s+", ""))
+      if v ~= "" then return v end
+    end
+  end
+  return fallback or "?"
 end
 
 local function fetchRemoteVersion(repo)
-  local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/manifest.lua",
-    repo.owner, repo.repo, repo.branch)
-  local h = http.get(url)
+  local url = string.format("https://raw.githubusercontent.com/%s/%s/%s/manifest.lua?nocache=%d",
+    repo.owner, repo.repo, repo.branch, os.epoch and os.epoch("utc") or 0)
+  local h = http.get(url, { ["Cache-Control"] = "no-cache", ["Pragma"] = "no-cache" })
   if not h then return nil end
   local body = h.readAll(); h.close()
   local ok, mf = pcall(function() return load(body, "manifest", "t", {})() end)
@@ -30,10 +37,10 @@ end
 function M.check(config)
   local repo = config and config.repo
   if type(repo) ~= "table" then return nil end
-  local localv = readLocal()
+  local localv = M.installed(config.VERSION)
   local remote = fetchRemoteVersion(repo)
   if not remote then return nil end
-  return { available = (localv ~= nil and remote ~= localv), localv = localv or "?", remote = remote }
+  return { available = (localv ~= "?" and remote ~= localv), localv = localv, remote = remote }
 end
 
 return M

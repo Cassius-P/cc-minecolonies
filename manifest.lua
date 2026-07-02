@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.1",
+  version = "3.2",
 
   files = {
     -- entry + config + vendored dependency
@@ -18,8 +18,9 @@ return {
     { src = "src/config.lua",  dst = "/config.lua" },
     { src = "vendor/basalt.lua", dst = "/basalt.lua" },
     -- self-updating installer/updater
-    { src = "install.lua", dst = "/install.lua" },
-    { src = "update.lua",  dst = "/update.lua" },
+    { src = "install.lua",   dst = "/install.lua" },
+    { src = "update.lua",    dst = "/update.lua" },
+    { src = "uninstall.lua", dst = "/uninstall.lua" },
     -- common
     { src = "src/common/util.lua",        dst = "/common/util.lua" },
     { src = "src/common/log.lua",         dst = "/common/log.lua" },
@@ -39,6 +40,7 @@ return {
     { src = "src/ui/layout.lua",   dst = "/ui/layout.lua" },
     { src = "src/ui/terminal.lua", dst = "/ui/terminal.lua" },
     { src = "src/ui/app.lua",      dst = "/ui/app.lua" },
+    { src = "src/ui/loader.lua",   dst = "/ui/loader.lua" },
     -- ui sections
     { src = "src/ui/sections/status.lua",    dst = "/ui/sections/status.lua" },
     { src = "src/ui/sections/workforce.lua", dst = "/ui/sections/workforce.lua" },

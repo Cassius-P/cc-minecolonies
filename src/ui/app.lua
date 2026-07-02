@@ -17,6 +17,7 @@ local updater  = require("common.updater")
 local theme    = require("ui.theme")
 local layout   = require("ui.layout")
 local terminal = require("ui.terminal")
+local loaderUI = require("ui.loader")
 local api      = require("colony.api")
 
 local M = {}
@@ -26,6 +27,8 @@ local deepCopy = util.deepCopy
 function M.start(cfgModule)
   local config = cfgModule.config
   local VERSION = cfgModule.VERSION
+  config.VERSION = VERSION                       -- fallback for the update check
+  local installedVersion = updater.installed(VERSION)  -- from /version stamp
   log.init(config)
 
   -- Required: colony integrator (adjacent or over a wired modem).
@@ -42,6 +45,7 @@ function M.start(cfgModule)
   local state = { data = nil, msg = "", countdown = config.refreshSeconds,
     quit = false, needScan = false, theme = config.theme, update = nil }
   local screens, screenByName = {}, {}
+  local loading, loader = true, nil   -- Basalt loading overlay (set up below)
 
   ----------------------------------------------------------------------------
   -- Build one Basalt frame + Display per monitor
@@ -136,7 +140,19 @@ function M.start(cfgModule)
 
   -- Computer terminal: native Basalt tabbed UI on the main frame.
   local mainFrame = basalt.getMainFrame()
-  termUI = terminal.build(mainFrame, { version = VERSION, config = config })
+  termUI = terminal.build(mainFrame, {
+    version = installedVersion, config = config,
+    onUpdate = function()
+      if loading then return end
+      loading = true
+      if loader then loader.show("Updating from GitHub...") end
+      basalt.schedule(function()
+        sleep(0.3)                 -- let the loader paint first
+        shell.run("/update.lua")   -- fetch + reinstall, preserving config
+        os.reboot()
+      end)
+    end,
+  })
 
   ----------------------------------------------------------------------------
   -- Settings, then build the Basalt section frames, then theme + first scan
@@ -151,8 +167,12 @@ function M.start(cfgModule)
   for _, s in ipairs(screens) do layout.buildScreen(s, env) end
 
   theme.apply(config.theme, screens, config)
-  rescan()
-  redrawAll()
+
+  -- Basalt loading overlay on the computer + every monitor until the first scan.
+  local frames = { mainFrame }
+  for _, s in ipairs(screens) do frames[#frames + 1] = s.frame end
+  loader = loaderUI.build(frames)
+  loader.show("Loading colony data")
 
   ----------------------------------------------------------------------------
   -- Global keys + periodic refresh
@@ -169,24 +189,35 @@ function M.start(cfgModule)
     end
   end)
 
+  -- Animate the loading overlay until the first scan completes.
+  basalt.schedule(function()
+    while loading do loader.tick(); sleep(0.3) end
+  end)
+
+  -- First scan, then reveal the UI and check for updates in the background.
+  basalt.schedule(function()
+    rescan()
+    loading = false
+    loader.hide()
+    redrawAll()
+    checkUpdate(); redrawAll()
+  end)
+
+  -- Periodic refresh (countdown).
   basalt.schedule(function()
     while true do
       sleep(1)
       state.countdown = state.countdown - 1
       local anyModal = false
       for _, s in ipairs(screens) do if s.modal then anyModal = true; break end end
-      if state.countdown <= 0 and not anyModal then rescan() end
+      if state.countdown <= 0 and not anyModal and not loading then rescan() end
       redrawAll()
     end
   end)
 
-  -- Update check: once at startup, then hourly. Terminal shows the indicator.
+  -- Hourly update check.
   basalt.schedule(function()
-    checkUpdate(); redrawAll()
-    while true do
-      sleep(3600)
-      checkUpdate(); redrawAll()
-    end
+    while true do sleep(3600); checkUpdate(); redrawAll() end
   end)
 
   basalt.run()

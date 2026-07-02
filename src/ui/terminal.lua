@@ -48,8 +48,14 @@ function M.build(mainFrame, ctx)
   -- Update ----------------------------------------------------------------
   local ut = tabs:newTab("Update")
   ui.lUpd = ut:addLabel({ x = 2, y = 2, width = tw - 2 })
-  ut:addLabel({ x = 2, y = 4, width = tw - 2 })
-    :setText("Type 'update' to install the latest version."):setForeground(colors.lightGray)
+  ut:addButton({ x = 2, y = 4, width = 22, height = 1 })
+    :setText("Install / update now")
+    :setBackground(colors.green):setForeground(colors.black)
+    :onClick(function() if ctx.onUpdate then ctx.onUpdate() end end)
+  ut:addLabel({ x = 2, y = 6, width = tw - 2 })
+    :setText("Pulls the latest from GitHub and reboots."):setForeground(colors.lightGray)
+  ut:addLabel({ x = 2, y = 7, width = tw - 2 })
+    :setText("(or type 'update' at the shell)"):setForeground(colors.gray)
 
   return { update = function(state, screens) M._update(ui, ctx, state, screens) end }
 end
