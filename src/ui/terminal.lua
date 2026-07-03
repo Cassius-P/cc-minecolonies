@@ -1,133 +1,165 @@
 ----------------------------------------------------------------------------
--- ui/terminal.lua -- Advanced Computer UI, built with native Basalt widgets.
+-- ui/terminal.lua -- the ADMIN VIEW: the UI on the Advanced Computer's own
+-- screen (NOT the monitors). Native Basalt widgets in a TabControl:
+-- Status / Monitors / Peripherals / Settings / Update.
 --
--- A TabControl on the main (computer-term) frame aggregates the status,
--- monitor assignments, peripheral network map and update check into tabs.
--- build() creates the widgets once; update() refreshes their text each scan.
+-- build() creates widgets once; update() refreshes them each tick but only
+-- writes a widget when its value actually changed (diffing) -- this keeps the
+-- screen from re-rendering every second, which was making the Settings inputs
+-- lag while typing.
 ----------------------------------------------------------------------------
 
 local perif = require("common.peripherals")
 
 local M = {}
 
--- build(mainFrame, ctx): ctx = { version, config }. Returns { update(state, screens) }.
+-- Only setText/setForeground when the value changed (avoids constant re-render).
+local function set(ui, key, el, text, fg)
+  local c = ui._cache[key]
+  if not c then c = {}; ui._cache[key] = c end
+  if c.t ~= text then el:setText(text); c.t = text end
+  if fg and c.f ~= fg then el:setForeground(fg); c.f = fg end
+end
+
+-- build(mainFrame, ctx): ctx = { version, config, onUpdateButton, onMargin }.
 function M.build(mainFrame, ctx)
   local tw, th = term.getSize()
   local tabs = mainFrame:addTabControl({
     x = 1, y = 1, width = tw, height = th,
     headerBackground = colors.gray, foreground = colors.white,
   })
-  local ui = {}
+  local ui = { _cache = {} }
 
-  -- Status ----------------------------------------------------------------
+  ------------------------------------------------------------------ Status
   local st = tabs:newTab("Status")
-  st:addLabel({ x = 2, y = 1, width = tw - 2 }):setText("colony_dashboard v" .. ctx.version)
+  ui.lTitle  = st:addLabel({ x = 2, y = 1, width = tw - 2, foreground = colors.cyan })
   ui.lColony = st:addLabel({ x = 2, y = 3, width = tw - 2 })
   ui.lPop    = st:addLabel({ x = 2, y = 4, width = tw - 2 })
   ui.lThreat = st:addLabel({ x = 2, y = 5, width = tw - 2 })
   ui.lWork   = st:addLabel({ x = 2, y = 6, width = tw - 2 })
   ui.lBridge = st:addLabel({ x = 2, y = 7, width = tw - 2 })
-  ui.lFoot   = st:addLabel({ x = 2, y = th - 3, width = tw - 2 }):setForeground(colors.lightGray)
-  st:addLabel({ x = 2, y = th - 1, width = tw - 2 })
-    :setText("Keys: r rescan  t theme  u check  i install  1-9 screen  q quit")
-    :setForeground(colors.lightGray)
+  ui.lFoot   = st:addLabel({ x = 2, y = th - 2, width = tw - 2, foreground = colors.lightGray })
+  st:addLabel({ x = 2, y = th, width = tw - 2 })
+    :setText("r rescan  t theme  u check  i install  1-9 screen  q quit")
+    :setForeground(colors.gray)
 
-  -- Monitors --------------------------------------------------------------
+  ------------------------------------------------------------------ Monitors
   local mt = tabs:newTab("Monitors")
   mt:addLabel({ x = 2, y = 1, width = tw - 2 })
-    :setText("Press 1-9 to reassign a monitor's screen:"):setForeground(colors.cyan)
-  ui.tbMon = mt:addTextBox({ x = 2, y = 3, width = tw - 3, height = th - 5,
+    :setText("Monitors -- press 1-9 to change a monitor's screen"):setForeground(colors.cyan)
+  ui.tbMon = mt:addTextBox({ x = 2, y = 3, width = tw - 3, height = th - 4,
     editable = false, background = colors.black, foreground = colors.white })
 
-  -- Peripherals -----------------------------------------------------------
+  ------------------------------------------------------------------ Peripherals
   local pt = tabs:newTab("Peripherals")
   pt:addLabel({ x = 2, y = 1, width = tw - 2 })
-    :setText("Network devices (name : type):"):setForeground(colors.cyan)
-  ui.tbPerif = pt:addTextBox({ x = 2, y = 3, width = tw - 3, height = th - 5,
+    :setText("Network devices (name : type)"):setForeground(colors.cyan)
+  ui.tbPerif = pt:addTextBox({ x = 2, y = 3, width = tw - 3, height = th - 4,
     editable = false, background = colors.black, foreground = colors.white })
 
-  -- Settings --------------------------------------------------------------
+  ------------------------------------------------------------------ Settings
   local se = tabs:newTab("Settings")
-  se:addLabel({ x = 2, y = 1, width = tw - 2, foreground = colors.yellow })
-    :setText("Suggestion thresholds (skill gap to suggest a move)")
-  local sg = ctx.config.suggestions or {}
-  se:addLabel({ x = 2, y = 3, width = 16 }):setText("Replace margin:")
-  ui.inReplace = se:addInput({ x = 18, y = 3, width = 6, height = 1,
-    background = colors.black, foreground = colors.white })
-  ui.inReplace:setText(tostring(sg.replaceMargin or 1))
-  ui.inReplace:onChange("text", function(_, v) if ctx.onMargin then ctx.onMargin("replaceMargin", v) end end)
-  se:addLabel({ x = 2, y = 5, width = 16 }):setText("Reassign margin:")
-  ui.inReassign = se:addInput({ x = 18, y = 5, width = 6, height = 1,
-    background = colors.black, foreground = colors.white })
-  ui.inReassign:setText(tostring(sg.reassignMargin or 1))
-  ui.inReassign:onChange("text", function(_, v) if ctx.onMargin then ctx.onMargin("reassignMargin", v) end end)
-  se:addLabel({ x = 2, y = 7, width = tw - 2, foreground = colors.gray })
-    :setText("Click a field and type a number.")
-  se:addLabel({ x = 2, y = 8, width = tw - 2, foreground = colors.gray })
-    :setText("0 = every improvement; higher = only big wins.")
+  se:addLabel({ x = 2, y = 1, width = tw - 2, foreground = colors.cyan })
+    :setText("Worker suggestions -- how big a skill gain to suggest a move")
+  se:addLabel({ x = 2, y = 3, width = 16 }):setText("Replace worker"):setForeground(colors.white)
+  ui.inReplace = se:addInput({ x = 18, y = 3, width = 5, height = 1, placeholder = "1",
+    background = colors.gray, foreground = colors.white })
+  ui.lReplaceHint = se:addLabel({ x = 24, y = 3, width = tw - 24, foreground = colors.lightGray })
 
-  -- Update ----------------------------------------------------------------
+  se:addLabel({ x = 2, y = 5, width = 16 }):setText("Reassign job"):setForeground(colors.white)
+  ui.inReassign = se:addInput({ x = 18, y = 5, width = 5, height = 1, placeholder = "1",
+    background = colors.gray, foreground = colors.white })
+  ui.lReassignHint = se:addLabel({ x = 24, y = 5, width = tw - 24, foreground = colors.lightGray })
+
+  se:addLabel({ x = 2, y = 8, width = tw - 2, foreground = colors.gray })
+    :setText("Click a box, type a number (0-20).")
+  se:addLabel({ x = 2, y = 9, width = tw - 2, foreground = colors.gray })
+    :setText("0 = suggest any gain   higher = only big upgrades")
+
+  local sg = ctx.config.suggestions or {}
+  ui.inReplace:setText(tostring(sg.replaceMargin or 1))
+  ui.inReassign:setText(tostring(sg.reassignMargin or 1))
+  ui.inReplace:onChange("text", function(_, v) if ctx.onMargin then ctx.onMargin("replaceMargin", v) end end)
+  ui.inReassign:onChange("text", function(_, v) if ctx.onMargin then ctx.onMargin("reassignMargin", v) end end)
+
+  ------------------------------------------------------------------ Update
   local ut = tabs:newTab("Update")
-  ui.lUpd = ut:addLabel({ x = 2, y = 2, width = tw - 2 })
-  ui.updBtn = ut:addButton({ x = 2, y = 4, width = 22, height = 1 })
-    :setText("Check for update")
-    :setBackground(colors.blue):setForeground(colors.white)
+  ui.lVer = ut:addLabel({ x = 2, y = 1, width = tw - 2, foreground = colors.lightGray })
+  ui.lUpd = ut:addLabel({ x = 2, y = 3, width = tw - 2 })
+  ui.updBtn = ut:addButton({ x = 2, y = 5, width = 20, height = 1 })
     :onClick(function() if ctx.onUpdateButton then ctx.onUpdateButton() end end)
-  ut:addLabel({ x = 2, y = 6, width = tw - 2 })
-    :setText("Check looks for a new version; Install pulls it and reboots.")
-    :setForeground(colors.lightGray)
   ut:addLabel({ x = 2, y = 7, width = tw - 2 })
-    :setText("Keys: u = check, i = install (or 'update' at the shell)"):setForeground(colors.gray)
+    :setText("Check finds a new version; Install pulls it & reboots.")
+    :setForeground(colors.gray)
+  ut:addLabel({ x = 2, y = 8, width = tw - 2 })
+    :setText("Keys: u check   i install   (or 'update' in shell)"):setForeground(colors.gray)
 
   return { update = function(state, screens) M._update(ui, ctx, state, screens) end }
 end
 
+local function marginHint(n)
+  n = tonumber(n) or 1
+  if n <= 0 then return "any gain" end
+  return "gain >= " .. n
+end
+
 function M._update(ui, ctx, state, screens)
   local d = state.data
+  set(ui, "title", ui.lTitle, "Colony Dashboard  v" .. ctx.version)
   if d then
-    ui.lColony:setText(("Colony: %s  #%s"):format(d.name, d.id))
-    ui.lPop:setText(("Happy %.1f/10   Pop %d/%d   Idle %d"):format(d.happiness, d.pop, d.maxPop, d.idle))
-      :setForeground(d.idle > 0 and colors.orange or colors.white)
+    set(ui, "colony", ui.lColony, ("Colony: %s  #%s"):format(d.name, d.id), colors.white)
+    set(ui, "pop", ui.lPop, ("Happy %.1f/10   Pop %d/%d   Idle %d"):format(d.happiness, d.pop, d.maxPop, d.idle),
+      d.idle > 0 and colors.orange or colors.white)
     local threat = d.attack and "UNDER ATTACK" or (d.raid and "RAID INCOMING" or "Secure")
-    ui.lThreat:setText(("Threat: %s    Sites %d  Graves %d"):format(threat, d.sites, d.graves))
-      :setForeground((d.attack or d.raid) and colors.red or colors.lime)
-    ui.lWork:setText(("Workers to place: %d    Requests: %d [%s]"):format(#d.suggestions, #d.requests, d.reqMode))
-      :setForeground(d.reqMode == "AUTO" and colors.lime or colors.lightGray)
-    ui.lBridge:setText(("Bridge: %s   Storage: %s"):format(d.bridgePresent and "yes" or "NO", d.storagePresent and "yes" or "NO"))
-      :setForeground((d.bridgePresent and d.storagePresent) and colors.white or colors.gray)
+    set(ui, "threat", ui.lThreat, ("Threat: %s    Sites %d  Graves %d"):format(threat, d.sites, d.graves),
+      (d.attack or d.raid) and colors.red or colors.lime)
+    set(ui, "work", ui.lWork, ("Workers to place: %d    Requests: %d [%s]"):format(#d.suggestions, #d.requests, d.reqMode),
+      d.reqMode == "AUTO" and colors.lime or colors.lightGray)
+    set(ui, "bridge", ui.lBridge, ("Bridge: %s   Storage: %s"):format(d.bridgePresent and "yes" or "NO", d.storagePresent and "yes" or "NO"),
+      (d.bridgePresent and d.storagePresent) and colors.white or colors.gray)
   else
-    ui.lColony:setText("scanning...")
+    set(ui, "colony", ui.lColony, "scanning...", colors.gray)
   end
-  ui.lFoot:setText(("Theme: %s   next scan: %ds   %s"):format(ctx.config.theme, state.countdown, state.msg or ""))
+  set(ui, "foot", ui.lFoot, ("Theme %s   next scan %2ds   %s"):format(ctx.config.theme, state.countdown, state.msg or ""))
 
   local ml = {}
   for i, s in ipairs(screens) do
     ml[#ml + 1] = ("[%d] %s  %dx%d  -> screen %d"):format(i, s.name, s.W, s.H, s.cfgIdx or 1)
   end
-  ui.tbMon:setText(table.concat(ml, "\n"))
+  set(ui, "mon", ui.tbMon, table.concat(ml, "\n"))
 
   local pl = {}
   for _, p in ipairs(perif.diagnostics()) do pl[#pl + 1] = ("%s : %s"):format(p.name, p.type) end
-  ui.tbPerif:setText(table.concat(pl, "\n"))
+  set(ui, "perif", ui.tbPerif, table.concat(pl, "\n"))
 
-  -- Settings inputs are not rewritten here (would clobber typing/cursor).
+  -- Settings hints reflect the live config (inputs themselves are not rewritten).
+  local sg = ctx.config.suggestions or {}
+  set(ui, "rHint", ui.lReplaceHint, marginHint(sg.replaceMargin), colors.lightGray)
+  set(ui, "aHint", ui.lReassignHint, marginHint(sg.reassignMargin), colors.lightGray)
 
+  -- Update tab
+  set(ui, "ver", ui.lVer, "Installed: v" .. ctx.version)
   local up = state.update
   if state.checking then
-    ui.lUpd:setText("Checking for updates..."):setForeground(colors.yellow)
-    ui.updBtn:setText("Checking..."):setBackground(colors.gray):setForeground(colors.white)
+    set(ui, "upd", ui.lUpd, "Checking for updates...", colors.yellow)
+    set(ui, "updBtnT", ui.updBtn, "Checking...")
+    if ui._cache.updBtnBg ~= colors.gray then ui.updBtn:setBackground(colors.gray); ui.updBtn:setForeground(colors.white); ui._cache.updBtnBg = colors.gray end
   elseif state.checkFailed and not (up and up.available) then
-    ui.lUpd:setText("Check failed - no connection to GitHub"):setForeground(colors.red)
-    ui.updBtn:setText("Check for update"):setBackground(colors.blue):setForeground(colors.white)
+    set(ui, "upd", ui.lUpd, "Check failed - no connection", colors.red)
+    set(ui, "updBtnT", ui.updBtn, "Check for update")
+    if ui._cache.updBtnBg ~= colors.blue then ui.updBtn:setBackground(colors.blue); ui.updBtn:setForeground(colors.white); ui._cache.updBtnBg = colors.blue end
   elseif up and up.available then
-    ui.lUpd:setText(("* Update available: v%s -> v%s"):format(up.localv, up.remote)):setForeground(colors.orange)
-    ui.updBtn:setText("Install update"):setBackground(colors.green):setForeground(colors.black)
+    set(ui, "upd", ui.lUpd, ("Update available: v%s -> v%s"):format(up.localv, up.remote), colors.orange)
+    set(ui, "updBtnT", ui.updBtn, "Install update")
+    if ui._cache.updBtnBg ~= colors.green then ui.updBtn:setBackground(colors.green); ui.updBtn:setForeground(colors.black); ui._cache.updBtnBg = colors.green end
   elseif up then
-    ui.lUpd:setText(("No new update available (v%s)"):format(up.localv or ctx.version)):setForeground(colors.green)
-    ui.updBtn:setText("Check for update"):setBackground(colors.blue):setForeground(colors.white)
+    set(ui, "upd", ui.lUpd, ("Up to date (v%s)"):format(up.localv or ctx.version), colors.green)
+    set(ui, "updBtnT", ui.updBtn, "Check for update")
+    if ui._cache.updBtnBg ~= colors.blue then ui.updBtn:setBackground(colors.blue); ui.updBtn:setForeground(colors.white); ui._cache.updBtnBg = colors.blue end
   else
-    ui.lUpd:setText("Version " .. ctx.version .. " - not checked yet"):setForeground(colors.lightGray)
-    ui.updBtn:setText("Check for update"):setBackground(colors.blue):setForeground(colors.white)
+    set(ui, "upd", ui.lUpd, "Not checked yet", colors.lightGray)
+    set(ui, "updBtnT", ui.updBtn, "Check for update")
+    if ui._cache.updBtnBg ~= colors.blue then ui.updBtn:setBackground(colors.blue); ui.updBtn:setForeground(colors.white); ui._cache.updBtnBg = colors.blue end
   end
 end
 

@@ -134,7 +134,7 @@ function M.start(cfgModule)
     config.suggestions = config.suggestions or { replaceMargin = 1, reassignMargin = 1 }
     config.suggestions[key] = math.max(0, math.min(20, math.floor(n)))
     settings.save(config, screens)
-    rescan(); redrawAll()      -- margins change the suggestions
+    state.needScan = true      -- apply on the next tick, NOT per keystroke (was laggy)
   end
 
   local function reassignScreen(i)
@@ -244,7 +244,7 @@ function M.start(cfgModule)
       state.countdown = state.countdown - 1
       local anyModal = false
       for _, s in ipairs(screens) do if s.modal then anyModal = true; break end end
-      if state.countdown <= 0 and not anyModal and not loading then rescan() end
+      if (state.needScan or state.countdown <= 0) and not anyModal and not loading then rescan() end
       redrawAll()
     end
   end)
