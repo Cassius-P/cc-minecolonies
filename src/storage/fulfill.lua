@@ -79,7 +79,6 @@ local function resolve(bridge, item, af)
   return out
 end
 
-local function domum(name) return type(name) == "string" and string.sub(name, 1, 17) == "domum_ornamentum:" end
 
 local function withCount(filter, count)
   local f = { count = count }
@@ -127,7 +126,7 @@ function M.handle(list, ctx)
     if stocked then
       item.provided = doExport(bridge, storage, stocked, item.count)
       if item.provided >= item.count then
-        item.displayColor = domum(item.item_name) and colors.lightBlue or colors.green
+        item.displayColor = colors.green   -- fully exported (Domum too; it's flagged by its purple materials line)
         goto continue
       else
         item.displayColor = colors.yellow
@@ -154,7 +153,7 @@ function M.handle(list, ctx)
       item.displayColor = ok and colors.blue or colors.yellow
     elseif not stocked then
       log.write((item.displayLabel or item.item_displayName or item.item_name) .. " not in system or craftable.")
-      item.displayColor = domum(item.item_name) and colors.lightBlue or colors.red
+      item.displayColor = colors.red
     end
 
     ::continue::

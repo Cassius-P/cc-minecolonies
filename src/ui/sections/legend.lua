@@ -14,7 +14,7 @@ function M.draw(x, y, w, h, screen, d)
   local entries = {
     { colors.red, "missing / uncraftable" }, { colors.yellow, "stuck / partial" },
     { colors.blue, "crafting" }, { colors.green, "fully exported" },
-    { colors.lightBlue, "domum ornamentum" }, { colors.gray, "skipped" },
+    { colors.gray, "skipped" },
   }
   for i, e in ipairs(entries) do
     if cy + i - 1 > y + h - 2 then break end
