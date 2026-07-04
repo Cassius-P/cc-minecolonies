@@ -324,17 +324,13 @@ function M.start(cfgModule)
       local open = false
       for _, s in ipairs(screens) do if s.modal and s.modal.kind == "apply" then open = true; break end end
       if open and not loading then
-        local cloc, vloc = {}, {}
+        local cloc = {}
         local okc, cits = pcall(function() return colony.getCitizens() end)
         if okc and type(cits) == "table" then
           for _, c in ipairs(cits) do if c.id then cloc[c.id] = c.location end end
         end
-        local okv, vis = pcall(function() return colony.getVisitors() end)
-        if okv and type(vis) == "table" then
-          for _, v in ipairs(vis) do if v.id then vloc[v.id] = v.location end end
-        end
         for _, s in ipairs(screens) do
-          if s.modal and s.modal.kind == "apply" then layout.refreshModalLocation(s, cloc, vloc) end
+          if s.modal and s.modal.kind == "apply" then layout.refreshModalLocation(s, cloc) end
         end
       end
     end

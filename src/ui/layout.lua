@@ -366,13 +366,14 @@ local function buildApplyModal(screen, s)
   line("Role: ", s.jobLabel or cap(s.job), C.text)
   if s.kind == "reassign" and s.from then line("From: ", cap(s.from), C.dim) end
   line("Job at: ", locStr(s.building.location), C.dim)
-  -- Live entity position (citizen/visitor moves): polled + updated in place
-  -- while the modal is open. Store the label + identity for refreshModalLocation.
-  local ePrefix = isRecruit and "Visitor at: " or "Citizen at: "
-  screen.nmodalEntityLabel = line(ePrefix, locStr(cand.location), C.accent2)
-  screen.nmodalEntity = { isVisitor = isRecruit, id = cand.id, prefix = ePrefix }
   if isRecruit then
+    -- Visitor entity position isn't tracked (0,0,0); point at the Tavern instead.
+    line("Recruit at: ", locStr(s.tavernLoc), C.accent2)
     line("Cost: ", s.cost and (tostring(s.cost.count) .. " x " .. s.cost.displayName) or "?", C.warn)
+  else
+    -- Live citizen position: polled + updated in place while the modal is open.
+    screen.nmodalEntityLabel = line("Citizen at: ", locStr(cand.location), C.accent2)
+    screen.nmodalEntity = { id = cand.id, prefix = "Citizen at: " }
   end
   if tgt then line("Replacing: ", tgt.name, C.bad) end
 
@@ -464,13 +465,13 @@ local function showNativeSections(screen, hooks)
   screen.nmodalKind = "sections"
 end
 
--- Update the open apply-modal's entity-location label in place from fresh
--- position maps (id -> location) for citizens and visitors. Lets the modal
--- track a moving citizen/visitor without rescanning the whole suggestion list.
-function M.refreshModalLocation(screen, citizenLoc, visitorLoc)
+-- Update the open apply-modal's citizen-location label in place from a fresh
+-- id -> location map. Lets the modal track a moving citizen without rescanning
+-- the whole suggestion list. (Recruit modals show a static Tavern, no entity.)
+function M.refreshModalLocation(screen, citizenLoc)
   local e, lbl = screen.nmodalEntity, screen.nmodalEntityLabel
   if not (e and lbl and e.id) then return end
-  local loc = (e.isVisitor and visitorLoc or citizenLoc)[e.id]
+  local loc = citizenLoc[e.id]
   if loc then lbl:setText(e.prefix .. locStr(loc)) end
 end
 

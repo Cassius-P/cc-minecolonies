@@ -217,6 +217,13 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
   -- costs items) buys nothing. Uses leftover open-slot capacity after the
   -- citizen passes above.
   if type(visitors) == "table" and #visitors > 0 then
+    -- The integrator does not track visitor entity position (returns 0,0,0), so
+    -- "locate" points at the Tavern where visitors gather / are recruited.
+    local tavernLoc
+    for _, b in ipairs(buildings) do
+      if (b.type or jobKey(b.name)) == "tavern" then tavernLoc = b.location; break end
+    end
+
     -- Best remaining idle-citizen score per job type (idle not already used).
     local bestIdleFor = {}
     for jk in pairs(recsByJob) do
@@ -252,8 +259,8 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
           out[#out + 1] = { kind = "recruit", job = bestJk, building = { location = target.loc },
             pri = sk[1], sec = sk[2],
             candidate = { name = v.name, id = v.id, score = bestScore, location = v.location,
-              pri = vpri, sec = vsec }, cost = cost,
-            visitorLoc = v.location, gain = bestScore - math.max(0, bestIdleFor[bestJk] or 0) }
+              pri = vpri, sec = vsec }, cost = cost, tavernLoc = tavernLoc,
+            gain = bestScore - math.max(0, bestIdleFor[bestJk] or 0) }
         else
           -- No open slot: displace the weakest worker of the best full hut if the
           -- gap clears the replace margin.
@@ -270,7 +277,7 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
                 pri = vpri, sec = vsec },
               target = { name = bWeak.name, id = bWeak.id, score = bWs,
                 pri = tgt and skillLevel(tgt, sk[1]) or 0, sec = tgt and skillLevel(tgt, sk[2]) or 0 },
-              cost = cost, visitorLoc = v.location, gain = bestScore - bWs }
+              cost = cost, tavernLoc = tavernLoc, gain = bestScore - bWs }
           end
         end
       end
