@@ -153,7 +153,15 @@ function M.start(cfgModule)
     if sel.workOrders then payload.workOrders = g(function() return colony.getWorkOrders() end, {}) end
     if sel.requests   then payload.requests   = g(function() return colony.getRequests() end, {}) end
     if sel.visitors   then payload.visitors   = g(function() return colony.getVisitors() end, {}) end
-    local okj, body = pcall(textutils.serializeJSON, payload)
+    -- Deep-clone to break shared table references (serializeJSON errors on
+    -- "repeated entries" when the same table is referenced more than once).
+    local function clone(t)
+      if type(t) ~= "table" then return t end
+      local c = {}
+      for k, v in pairs(t) do c[k] = clone(v) end
+      return c
+    end
+    local okj, body = pcall(textutils.serializeJSON, clone(payload))
     if not okj then body = textutils.serialize(payload) end
     local res = http.post("https://paste.rs", body)
     if not res then error("paste.rs post failed (http)", 0) end
