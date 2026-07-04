@@ -296,13 +296,12 @@ local function applyModal(screen, s, data)
   local lines
   if s.kind == "recruit" then
     lines = {
-      { "Visitor:  " .. s.candidate.name, C.note },
-      { "Best job: " .. (s.jobLabel or s.job), C.good },
+      { "Recruit:  " .. s.candidate.name, C.note },
+      { "Best job: " .. (s.jobLabel or s.job) .. " (fit " .. s.candidate.score .. ")", C.good },
       { "At:       " .. locStr(s.building.location), C.text },
       { "Cost:     " .. (s.cost and (tostring(s.cost.count) .. " x " .. s.cost.displayName) or "?"), C.warn },
-      { "Find at:  " .. locStr(s.visitorLoc), C.accent2 },
       { "Manual steps:", C.accent2 },
-      { " 1. Go to visitor at " .. locStr(s.visitorLoc), C.dim },
+      { " 1. Find visitor at " .. locStr(s.visitorLoc), C.dim },
       { " 2. Recruit at the Tavern (pay cost)", C.dim },
       { " 3. Assign to " .. (s.jobLabel or s.job) .. " at " .. locStr(s.building.location), C.dim },
     }

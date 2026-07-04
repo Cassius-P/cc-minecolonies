@@ -58,14 +58,15 @@ function M.draw(x, y, w, h, screen, d)
       local s = sugs[i]
       local txt, col
       local toLabel = s.jobLabel or cap(s.job)
+      -- Uniform row shape across all kinds: "<verb> <name> \26 <job>".
       if s.kind == "assign" then
         txt = ("assign %s \26 %s"):format(s.candidate.name, toLabel); col = C.good
       elseif s.kind == "reassign" then
-        txt = ("%s: %s \26 %s"):format(s.candidate.name, cap(s.from), toLabel); col = C.note
+        txt = ("move %s \26 %s"):format(s.candidate.name, toLabel); col = C.note
       elseif s.kind == "recruit" then
         txt = ("recruit %s \26 %s"):format(s.candidate.name, toLabel); col = C.accent2
       else
-        txt = ("%s \26 %s (rep %s)"):format(s.candidate.name, toLabel, s.target.name); col = C.warn
+        txt = ("replace %s \26 %s"):format(s.candidate.name, toLabel); col = C.warn
       end
       -- Highlight + make the WHOLE row the clickable action.
       draw.fillRect(cx, row, cw, 1, C.cardTitle)
