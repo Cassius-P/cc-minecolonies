@@ -54,6 +54,28 @@ function M.gather(ctx)
   table.sort(jobTypes)
   d.jobTypes = jobTypes
 
+  -- Resolve each work order's builder to a NAME. The integrator gives `builder`
+  -- as the builder-hut position (or, on some versions, a table with a name);
+  -- map the position to the hut's assigned citizen. Sets o.builderName.
+  local bByLoc = {}
+  for _, b in ipairs(buildings) do
+    if type(b.location) == "table" then bByLoc[util.locStr(b.location)] = b end
+  end
+  for _, o in ipairs(d.orders) do
+    local bl = o.builder
+    if type(bl) == "table" then
+      if type(bl.name) == "string" and bl.name ~= "" then
+        o.builderName = bl.name
+      else
+        local loc = bl.location or bl
+        local hut = type(loc) == "table" and bByLoc[util.locStr(loc)]
+        if hut and type(hut.citizens) == "table" and hut.citizens[1] then
+          o.builderName = hut.citizens[1].name
+        end
+      end
+    end
+  end
+
   -- Requests + optional auto-fulfill (CCxM).
   local bridge  = perif.findBridge(config)
   local storage = perif.findStorage(config)

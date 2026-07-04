@@ -98,12 +98,16 @@ function M.draw(x, y, w, h, screen, d)
       local rightEdge = cx + cw
       local lvlX = (lvl ~= "") and (rightEdge - #lvl) or rightEdge
       local leftLimit = lvlX - 1
-      -- name, then coordinates right after it in a discrete colour
+      -- name, then the assigned builder's name in a distinct colour (falls back
+      -- to coordinates when no builder is assigned yet).
       local nameShown = trunc(name, math.max(0, leftLimit - nameX))
       draw.put(nameX, ry, nameShown, C.text, C.card)
-      local coordsX = nameX + #nameShown + 1
-      if coords ~= "" and coordsX + #coords - 1 <= leftLimit then
-        draw.put(coordsX, ry, coords, C.dim, C.card)  -- discrete colour, next to name
+      local sx = nameX + #nameShown + 1
+      local builder = o.builderName
+      if builder and builder ~= "" and sx <= leftLimit then
+        draw.put(sx, ry, trunc(builder, leftLimit - sx + 1), C.note, C.card)
+      elseif coords ~= "" and sx + #coords - 1 <= leftLimit then
+        draw.put(sx, ry, coords, C.dim, C.card)
       end
       if lvl ~= "" then draw.put(lvlX, ry, lvl, C.dim, C.card) end
     end
