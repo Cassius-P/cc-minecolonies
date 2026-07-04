@@ -82,6 +82,26 @@ function M.build(mainFrame, ctx)
   ui.inReplace:onChange("text", function(_, v) if ctx.onMargin then ctx.onMargin("replaceMargin", v) end end)
   ui.inReassign:onChange("text", function(_, v) if ctx.onMargin then ctx.onMargin("reassignMargin", v) end end)
 
+  ------------------------------------------------------------------ Dump
+  local dm = tabs:newTab("Dump")
+  dm:addLabel({ x = 2, y = 1, width = tw - 2, foreground = colors.cyan })
+    :setText("Dump colony data -> paste.rs (JSON)")
+  local defs = {
+    { "colony", "Colony info" }, { "citizens", "Citizens" }, { "buildings", "Buildings" },
+    { "workOrders", "Work orders" }, { "requests", "Requests" }, { "visitors", "Visitors" },
+  }
+  ui.dumpCbs = {}
+  for i, dinfo in ipairs(defs) do
+    local cb = dm:addCheckBox({ x = 2, y = 2 + i, checked = true, text = " " .. dinfo[2] })
+    ui.dumpCbs[#ui.dumpCbs + 1] = { key = dinfo[1], cb = cb }
+  end
+  local by = 2 + #defs + 2
+  ui.dumpBtn = dm:addButton({ x = 2, y = by, width = 16, height = 1 })
+    :setText("Create dump"):setBackground(colors.blue):setForeground(colors.white)
+    :onClick(function() if ctx.onDump then ctx.onDump(M.dumpSelection(ui)) end end)
+  dm:addLabel({ x = 20, y = by, width = tw - 20, foreground = colors.gray }):setText("or press 'd'")
+  ui.lDump = dm:addLabel({ x = 2, y = by + 2, width = tw - 2 })
+
   ------------------------------------------------------------------ Update
   local ut = tabs:newTab("Update")
   ui.lVer = ut:addLabel({ x = 2, y = 1, width = tw - 2, foreground = colors.lightGray })
@@ -94,7 +114,16 @@ function M.build(mainFrame, ctx)
   ut:addLabel({ x = 2, y = 8, width = tw - 2 })
     :setText("Keys: u check   i install   (or 'update' in shell)"):setForeground(colors.gray)
 
-  return { update = function(state, screens) M._update(ui, ctx, state, screens) end }
+  return {
+    update = function(state, screens) M._update(ui, ctx, state, screens) end,
+    triggerDump = function() if ctx.onDump then ctx.onDump(M.dumpSelection(ui)) end end,
+  }
+end
+
+function M.dumpSelection(ui)
+  local sel = {}
+  for _, e in ipairs(ui.dumpCbs) do sel[e.key] = e.cb.get("checked") and true or false end
+  return sel
 end
 
 local function marginHint(n)
@@ -136,6 +165,17 @@ function M._update(ui, ctx, state, screens)
   local sg = ctx.config.suggestions or {}
   set(ui, "rHint", ui.lReplaceHint, marginHint(sg.replaceMargin), colors.lightGray)
   set(ui, "aHint", ui.lReassignHint, marginHint(sg.reassignMargin), colors.lightGray)
+
+  -- Dump tab status
+  if state.dumping then
+    set(ui, "dump", ui.lDump, "Dumping...", colors.yellow)
+  elseif state.dumpError then
+    set(ui, "dump", ui.lDump, "Failed: " .. tostring(state.dumpError):sub(1, 40), colors.red)
+  elseif state.dumpLink then
+    set(ui, "dump", ui.lDump, state.dumpLink, colors.lime)
+  else
+    set(ui, "dump", ui.lDump, "", colors.white)
+  end
 
   -- Update tab
   set(ui, "ver", ui.lVer, "Installed: v" .. ctx.version)

@@ -137,6 +137,41 @@ function M.start(cfgModule)
     state.needScan = true      -- apply on the next tick, NOT per keystroke (was laggy)
   end
 
+  -- Dump selected colony data to paste.rs (JSON) and show the link.
+  local function doDump(sel)
+    local function g(fn, d) local ok, v = pcall(fn); if ok and v ~= nil then return v else return d end end
+    local payload = { at = os.epoch and os.epoch("utc") or 0 }
+    if sel.colony then
+      payload.colony = { name = g(colony.getColonyName), id = g(colony.getColonyID),
+        happiness = g(colony.getHappiness), pop = g(colony.amountOfCitizens),
+        maxPop = g(colony.maxOfCitizens), attack = g(colony.isUnderAttack),
+        raid = g(colony.isUnderRaid), sites = g(colony.amountOfConstructionSites),
+        graves = g(colony.amountOfGraves) }
+    end
+    if sel.citizens   then payload.citizens   = g(function() return colony.getCitizens() end, {}) end
+    if sel.buildings  then payload.buildings  = g(function() return colony.getBuildings() end, {}) end
+    if sel.workOrders then payload.workOrders = g(function() return colony.getWorkOrders() end, {}) end
+    if sel.requests   then payload.requests   = g(function() return colony.getRequests() end, {}) end
+    if sel.visitors   then payload.visitors   = g(function() return colony.getVisitors() end, {}) end
+    local okj, body = pcall(textutils.serializeJSON, payload)
+    if not okj then body = textutils.serialize(payload) end
+    local res = http.post("https://paste.rs", body)
+    if not res then error("paste.rs post failed (http)", 0) end
+    local link = res.readAll(); res.close()
+    return (link:gsub("%s+$", ""))
+  end
+
+  local function onDump(sel)
+    if state.dumping then return end
+    state.dumping = true; state.dumpLink = nil; state.dumpError = nil; redrawAll()
+    basalt.schedule(function()
+      local ok, link = pcall(doDump, sel or {})
+      state.dumping = false
+      if ok and link and link ~= "" then state.dumpLink = link else state.dumpError = tostring(link) end
+      redrawAll()
+    end)
+  end
+
   local function reassignScreen(i)
     local s = screens[i]; if not s then return end
     s.cfgIdx = ((s.cfgIdx or 1) % #config.screens) + 1
@@ -179,6 +214,7 @@ function M.start(cfgModule)
       if state.update and state.update.available then doInstall() else doCheck() end
     end,
     onMargin = setMargin,
+    onDump = onDump,
   })
 
   ----------------------------------------------------------------------------
@@ -218,6 +254,8 @@ function M.start(cfgModule)
       doCheck()
     elseif ch == "i" then
       doInstall()
+    elseif ch == "d" then
+      if termUI and termUI.triggerDump then termUI.triggerDump() end
     elseif type(ch) == "string" and ch:match("%d") then
       reassignScreen(tonumber(ch)); redrawAll()
     end
