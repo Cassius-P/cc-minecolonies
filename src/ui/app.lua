@@ -43,7 +43,8 @@ function M.start(cfgModule)
   -- State
   ----------------------------------------------------------------------------
   local state = { data = nil, msg = "", countdown = config.refreshSeconds,
-    quit = false, needScan = false, theme = config.theme, update = nil }
+    quit = false, needScan = false, theme = config.theme, update = nil,
+    booting = true }   -- true during the boot splash / cancel window
   local screens, screenByName = {}, {}
   local loading, loader = true, nil   -- Basalt loading overlay (set up below)
 
@@ -247,12 +248,18 @@ function M.start(cfgModule)
   local frames = { mainFrame }
   for _, s in ipairs(screens) do frames[#frames + 1] = s.frame end
   loader = loaderUI.build(frames)
-  loader.show("Loading colony data")
+  loader.show("Starting - hold a key to cancel")
 
   ----------------------------------------------------------------------------
   -- Global keys + periodic refresh
   ----------------------------------------------------------------------------
+  -- During the boot splash, ANY key cancels auto-launch and drops to the shell.
+  basalt.onEvent("key", function()
+    if state.booting then state.cancelBoot = true; basalt.stop() end
+  end)
+
   basalt.onEvent("char", function(ch)
+    if state.booting then return end   -- splash window: keys handled by the "key" cancel above
     -- Ignore global shortcuts while typing in an input field.
     local f = basalt.getFocus and basalt.getFocus()
     if f and f.get and (f.get("type") == "Input" or f.get("type") == "TextBox") then return end
@@ -280,8 +287,15 @@ function M.start(cfgModule)
     while loading do loader.tick(); sleep(0.3) end
   end)
 
-  -- First scan, then reveal the UI and check for updates in the background.
+  -- Boot splash (2s cancel window) -> first scan -> reveal -> background update check.
+  -- All in this one Basalt session, so boot is a single seamless screen.
   basalt.schedule(function()
+    for _ = 1, 7 do                       -- ~2s, but bail immediately on cancel
+      if state.cancelBoot then return end
+      sleep(0.3)
+    end
+    state.booting = false
+    loader.show("Loading colony data")
     rescan()
     loading = false
     loader.hide()
@@ -315,8 +329,13 @@ function M.start(cfgModule)
   end
   term.setBackgroundColor(colors.black); term.setTextColor(colors.white)
   term.clear(); term.setCursorPos(1, 1)
+  if state.cancelBoot then
+    print("Auto-launch cancelled. Run 'main' to start the dashboard.")
+    return
+  end
   if state.pendingInstall then
-    print("Updating from GitHub...")
+    -- App Basalt is fully stopped now; the updater runs in its own single
+    -- Basalt session (no nesting -> no flicker), then reboots.
     shell.run("/update.lua", "force")
     os.reboot()
     return
