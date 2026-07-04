@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.36",
+  version = "3.37",
 
   files = {
     -- entry + config + vendored dependency
@@ -41,6 +41,14 @@ return {
     { src = "src/ui/terminal.lua", dst = "/ui/terminal.lua" },
     { src = "src/ui/app.lua",      dst = "/ui/app.lua" },
     { src = "src/ui/loader.lua",   dst = "/ui/loader.lua" },
+    -- admin view (one module per tab)
+    { src = "src/ui/admin/diff.lua",        dst = "/ui/admin/diff.lua" },
+    { src = "src/ui/admin/status.lua",      dst = "/ui/admin/status.lua" },
+    { src = "src/ui/admin/monitors.lua",    dst = "/ui/admin/monitors.lua" },
+    { src = "src/ui/admin/peripherals.lua", dst = "/ui/admin/peripherals.lua" },
+    { src = "src/ui/admin/settings.lua",    dst = "/ui/admin/settings.lua" },
+    { src = "src/ui/admin/dump.lua",        dst = "/ui/admin/dump.lua" },
+    { src = "src/ui/admin/update.lua",      dst = "/ui/admin/update.lua" },
     -- ui sections
     { src = "src/ui/sections/status.lua",    dst = "/ui/sections/status.lua" },
     { src = "src/ui/sections/workforce.lua", dst = "/ui/sections/workforce.lua" },
