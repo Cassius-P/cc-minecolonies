@@ -117,15 +117,13 @@ function M.start(cfgModule)
       state.checking = false; redrawAll()
     end)
   end
+  -- Hand off to the updater cleanly: stop our Basalt app, then run /update.lua
+  -- (which draws its OWN Basalt UI) AFTER basalt.run() returns -- never nested,
+  -- so the progress bar no longer flickers against our still-live UI.
   local function doInstall()
-    if loading then return end
-    loading = true
-    if loader then loader.show("Updating from GitHub...") end
-    basalt.schedule(function()
-      sleep(0.3)
-      shell.run("/update.lua", "force")
-      os.reboot()
-    end)
+    if loading or state.pendingInstall then return end
+    state.pendingInstall = true
+    basalt.stop()
   end
 
   local function setMargin(key, value)
@@ -317,6 +315,12 @@ function M.start(cfgModule)
   end
   term.setBackgroundColor(colors.black); term.setTextColor(colors.white)
   term.clear(); term.setCursorPos(1, 1)
+  if state.pendingInstall then
+    print("Updating from GitHub...")
+    shell.run("/update.lua", "force")
+    os.reboot()
+    return
+  end
   print("colony_dashboard stopped.")
 end
 

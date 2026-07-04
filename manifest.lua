@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.40",
+  version = "3.41",
 
   files = {
     -- entry + config + vendored dependency
