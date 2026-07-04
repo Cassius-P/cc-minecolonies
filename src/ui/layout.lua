@@ -175,7 +175,7 @@ end
 function M.buildScreen(screen, env)
   screen.env = env
   screen.secFrames, screen.secDisp, screen.secButtons = {}, {}, {}
-  screen.footerButtons, screen.modalButtons = {}, {}
+  screen.footerButtons = {}
 
   for _, id in ipairs(SECTION_ORDER) do makeSectionFrame(screen, id) end
 
@@ -188,19 +188,9 @@ function M.buildScreen(screen, env)
     return true
   end)
 
-  -- Draw-based modal: still used for the SECTIONS toggle overlay.
-  local mf = screen.frame:addFrame({ x = 1, y = 1, width = screen.W, height = screen.H })
-  mf.set("z", 500); mf.set("visible", false)
-  local md = mf:addDisplay({ x = 1, y = 1, width = screen.W, height = screen.H })
-  screen.modalFrame, screen.modalDisp = mf, md
-  mf:onClick(function(_, _btn, x, y)
-    routeClick(md:getWindow(), screen.W, screen.H, screen.modalButtons, x, y, screen)
-    return true
-  end)
-
-  -- Native Basalt modal: used for the "apply" suggestion popup (real widgets).
-  -- Full-screen so it blocks taps to the sections beneath; content is a card
-  -- built on open and torn down on close.
+  -- Native Basalt modal (real widgets) for BOTH the suggestion popup and the
+  -- SECTIONS toggle overlay. Full-screen so it blocks taps to the sections
+  -- beneath; the card subtree is built on open and torn down on close.
   local nmf = screen.frame:addFrame({ x = 1, y = 1, width = screen.W, height = screen.H,
     background = C.screen })
   nmf.set("z", 600); nmf.set("visible", false)
@@ -305,14 +295,15 @@ local function clearCard(screen)
   end
 end
 
--- Hide + tear down the native apply modal.
-local function hideNativeApply(screen)
+-- Hide + tear down whichever native modal is open.
+local function hideNativeModal(screen)
   local nmf = screen.nmodalFrame
   if nmf and nmf.get("visible") then
     clearCard(screen)
     nmf.set("visible", false)
   end
   screen.nmodalSug = nil
+  screen.nmodalKind = nil
 end
 
 local KIND_TITLE = { assign = "ASSIGN", replace = "REPLACE", reassign = "REASSIGN", recruit = "RECRUIT VISITOR" }
@@ -390,32 +381,62 @@ end
 
 -- Rebuild only when the shown suggestion changes (render runs every tick).
 local function showNativeApply(screen, s)
-  if screen.nmodalSug == s and screen.nmodalFrame.get("visible") then return end
+  if screen.nmodalKind == "apply" and screen.nmodalSug == s and screen.nmodalFrame.get("visible") then return end
   buildApplyModal(screen, s)
-  screen.nmodalSug = s
+  screen.nmodalKind = "apply"; screen.nmodalSug = s
 end
 
-local function sectionsModal(screen, hooks)
+-- Native SECTIONS toggle modal: one Basalt Button per section (checkbox-style),
+-- toggled in place so state updates without a full rebuild.
+local function buildSectionsModal(screen, hooks)
   local W, H = screen.W, screen.H
-  local mw = math.min(W - 4, 34)
-  local mh = math.min(H - 4, #SECTION_ORDER + 4)
+  local nmf = screen.nmodalFrame
+  clearCard(screen)
+  nmf.set("background", C.screen)
+  nmf.set("visible", true)
+
+  local mw = math.min(W - 2, 34)
+  local mh = math.min(H - 2, #SECTION_ORDER + 5)
   local mx = math.floor((W - mw) / 2) + 1
   local my = math.floor((H - mh) / 2) + 1
-  local cx, cy = draw.card(mx, my, mw, mh, "SECTIONS")
-  draw.put(cx, cy, "Tap to toggle visibility:", C.dim, C.card)
+  local card = nmf:addFrame({ x = mx, y = my, width = mw, height = mh, background = C.card })
+  screen.nmodalCard = card
+
+  card:addFrame({ x = 1, y = 1, width = mw, height = 1, background = C.cardTitle })
+  card:addLabel({ x = 2, y = 1, width = mw - 2, background = C.cardTitle, foreground = C.titleText })
+    :setText("SECTIONS")
+  card:addLabel({ x = 2, y = 3, width = mw - 2, background = C.card, foreground = C.dim })
+    :setText("Tap to toggle:")
+
   for i, id in ipairs(SECTION_ORDER) do
-    local ry = cy + i
-    if ry > my + mh - 2 then break end
-    local on = isShown(screen, id)
-    draw.put(cx, ry, on and "[x]" or "[ ]", on and C.good or C.dim, C.card)
-    draw.put(cx + 4, ry, SECTIONS[id].title, on and C.text or C.dim, C.card)
-    draw.addButton(cx, ry, cx + mw - 3, ry, function()
-      screen.enabled[id] = not on
-      M.applyRects(screen)
-      hooks.save()
-    end)
+    local ry = 3 + i
+    if ry <= mh - 2 then
+      local on = isShown(screen, id)
+      local btn = card:addButton({ x = 2, y = ry, width = mw - 3, height = 1,
+        background = on and C.good or C.card, foreground = on and colors.black or C.dim })
+      btn:setText((on and "[x] " or "[ ] ") .. SECTIONS[id].title)
+      btn:onClick(function(self)
+        local now = not isShown(screen, id)
+        screen.enabled[id] = now
+        M.applyRects(screen)
+        hooks.save()
+        self:setText((now and "[x] " or "[ ] ") .. SECTIONS[id].title)
+        self:setBackground(now and C.good or C.card)
+        self:setForeground(now and colors.black or C.dim)
+        screen.env.redraw()
+      end)
+    end
   end
-  draw.button(cx, my + mh - 1, "CLOSE", C.btnOk, C.btnText, function() screen.modal = nil end)
+
+  card:addButton({ x = mw - 7, y = mh, width = 7, height = 1,
+    background = C.btnOk, foreground = C.btnText }):setText("CLOSE")
+    :onClick(function() screen.modal = nil; screen.env.redraw() end)
+end
+
+local function showNativeSections(screen, hooks)
+  if screen.nmodalKind == "sections" and screen.nmodalFrame.get("visible") then return end
+  buildSectionsModal(screen, hooks)
+  screen.nmodalKind = "sections"
 end
 
 ----------------------------------------------------------------------------
@@ -446,21 +467,11 @@ function M.render(screen, data, state, hooks)
   end
 
   if screen.modal and screen.modal.kind == "apply" then
-    -- Native Basalt overlay; the draw modal stays hidden.
-    screen.modalFrame.set("visible", false)
     showNativeApply(screen, screen.modal.sug)
   elseif screen.modal and screen.modal.kind == "sections" then
-    hideNativeApply(screen)
-    screen.modalFrame.set("visible", true)
-    local mw = screen.modalDisp:getWindow()
-    local btns = {}
-    draw.setTarget(mw, screen.W, screen.H, btns)
-    screen.modalButtons = btns
-    mw.setBackgroundColor(C.screen); mw.clear()
-    sectionsModal(screen, hooks)
+    showNativeSections(screen, hooks)
   else
-    screen.modalFrame.set("visible", false)
-    hideNativeApply(screen)
+    hideNativeModal(screen)
   end
 end
 
