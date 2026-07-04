@@ -28,6 +28,24 @@ end
 
 local function trunc(s, n) return #s > n and s:sub(1, math.max(0, n)) or s end
 
+-- Work progress percent, best-effort (the API field name isn't documented).
+-- Accepts a 0-100 number, a 0-1 fraction, or a {current,total} table.
+local function pct(o)
+  local p = o.progress or o.workProgress or o.percentage or o.buildingProgress or o.completion
+  if type(p) == "table" then
+    local cur, tot = p.current or p[1], p.total or p[2]
+    if type(cur) == "number" and type(tot) == "number" and tot > 0 then
+      return math.max(0, math.min(100, math.floor(cur / tot * 100 + 0.5)))
+    end
+    return nil
+  end
+  if type(p) == "number" then
+    if p >= 0 and p <= 1 then p = p * 100 end
+    return math.max(0, math.min(100, math.floor(p + 0.5)))
+  end
+  return nil
+end
+
 -- Full building name (NOT jobKey, which would keep only the last word, turning
 -- "Town Hall" -> "Hall" and "Courier's Hut" -> "Hut"). Drop a namespace prefix,
 -- normalise separators, capitalise each word.
@@ -89,14 +107,26 @@ function M.draw(x, y, w, h, screen, d)
       local lvl = o.targetLevel and ("L" .. tostring(o.targetLevel)) or ""
       local loc = o.location or o.pos or o.buildingLocation or o.workOrderLocation
       local coords = (type(loc) == "table") and util.locStr(loc) or ""
+      local p = pct(o)
+      local prog = p and (p .. "%") or ""
       draw.put(cx + 1, ry, "\7", o.isClaimed and C.good or C.warn, C.card)
 
       local nameX = cx + 3
       local rightEdge = cx + cw
-      local lvlX = (lvl ~= "") and (rightEdge - #lvl) or rightEdge
-      local coordsX = (coords ~= "") and (lvlX - 1 - #coords) or lvlX
-      draw.put(nameX, ry, trunc(name, math.max(0, coordsX - 1 - nameX)), C.text, C.card)
-      if coords ~= "" then draw.put(coordsX, ry, coords, C.accent2, C.card) end  -- coords in a distinct colour
+      -- right cluster: progress then level
+      local lvlX  = (lvl ~= "") and (rightEdge - #lvl) or rightEdge
+      local progX = (prog ~= "") and (lvlX - 1 - #prog) or lvlX
+      local leftLimit = progX - 1
+      -- name, then coordinates right after it in a discrete colour
+      local nameShown = trunc(name, math.max(0, leftLimit - nameX))
+      draw.put(nameX, ry, nameShown, C.text, C.card)
+      local coordsX = nameX + #nameShown + 1
+      if coords ~= "" and coordsX + #coords - 1 <= leftLimit then
+        draw.put(coordsX, ry, coords, C.dim, C.card)  -- discrete colour, next to name
+      end
+      if prog ~= "" then
+        draw.put(progX, ry, prog, (p >= 100 and C.good) or C.accent, C.card)
+      end
       if lvl ~= "" then draw.put(lvlX, ry, lvl, C.dim, C.card) end
     end
   end
