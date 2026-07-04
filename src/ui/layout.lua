@@ -13,10 +13,13 @@
 -- Basalt onScroll handler for terminals that do send scroll events.
 ----------------------------------------------------------------------------
 
-local draw  = require("ui.draw")
-local theme = require("ui.theme")
-local util  = require("common.util")
+local draw   = require("ui.draw")
+local theme  = require("ui.theme")
+local util   = require("common.util")
+local skills = require("colony.skills")
 local C = theme.C
+local locStr = util.locStr
+local cap = util.capitalize
 
 local SECTIONS = {
   status    = require("ui.sections.status"),
@@ -185,6 +188,7 @@ function M.buildScreen(screen, env)
     return true
   end)
 
+  -- Draw-based modal: still used for the SECTIONS toggle overlay.
   local mf = screen.frame:addFrame({ x = 1, y = 1, width = screen.W, height = screen.H })
   mf.set("z", 500); mf.set("visible", false)
   local md = mf:addDisplay({ x = 1, y = 1, width = screen.W, height = screen.H })
@@ -193,6 +197,15 @@ function M.buildScreen(screen, env)
     routeClick(md:getWindow(), screen.W, screen.H, screen.modalButtons, x, y, screen)
     return true
   end)
+
+  -- Native Basalt modal: used for the "apply" suggestion popup (real widgets).
+  -- Full-screen so it blocks taps to the sections beneath; content is a card
+  -- built on open and torn down on close.
+  local nmf = screen.frame:addFrame({ x = 1, y = 1, width = screen.W, height = screen.H,
+    background = C.screen })
+  nmf.set("z", 600); nmf.set("visible", false)
+  nmf:onClick(function() return true end)  -- swallow taps outside the card
+  screen.nmodalFrame = nmf
 
   M.applyRects(screen)
 end
@@ -284,63 +297,102 @@ local function drawFooter(screen, data, state, hooks)
   end
 end
 
-local function applyModal(screen, s, data)
+-- Remove the modal's card subtree (Basalt has removeChild, not removeChildren).
+local function clearCard(screen)
+  if screen.nmodalCard then
+    screen.nmodalFrame:removeChild(screen.nmodalCard)
+    screen.nmodalCard = nil
+  end
+end
+
+-- Hide + tear down the native apply modal.
+local function hideNativeApply(screen)
+  local nmf = screen.nmodalFrame
+  if nmf and nmf.get("visible") then
+    clearCard(screen)
+    nmf.set("visible", false)
+  end
+  screen.nmodalSug = nil
+end
+
+local KIND_TITLE = { assign = "ASSIGN", replace = "REPLACE", reassign = "REASSIGN", recruit = "RECRUIT VISITOR" }
+
+-- Build the native Basalt apply modal (real Labels / ProgressBars / Button) for
+-- a suggestion. Skill levels render as bars: green = the hire, red = the worker
+-- being displaced (when there is one), so the upgrade is visible at a glance.
+local function buildApplyModal(screen, s)
   local W, H = screen.W, screen.H
-  local locStr = util.locStr
-  local mw = math.min(W - 4, 46)
-  local mh = math.min(H - 4, 13)
+  local nmf = screen.nmodalFrame
+  clearCard(screen)
+  nmf.set("background", C.screen)
+  nmf.set("visible", true)
+
+  local mw = math.min(W - 2, 46)
+  local mh = math.min(H - 2, 14)
   local mx = math.floor((W - mw) / 2) + 1
   local my = math.floor((H - mh) / 2) + 1
-  local cx, cy = draw.card(mx, my, mw, mh, s.kind == "recruit" and "RECRUIT VISITOR" or "APPLY SUGGESTION")
-  local row = cy
-  local lines
+  local card = nmf:addFrame({ x = mx, y = my, width = mw, height = mh, background = C.card })
+  screen.nmodalCard = card
+
+  -- Title strip.
+  card:addFrame({ x = 1, y = 1, width = mw, height = 1, background = C.cardTitle })
+  card:addLabel({ x = 2, y = 1, width = mw - 2, background = C.cardTitle, foreground = C.titleText })
+    :setText((KIND_TITLE[s.kind] or "APPLY") .. " - " .. (s.jobLabel or s.job))
+
+  local iy = 3
+  local function line(txt, fg)
+    card:addLabel({ x = 2, y = iy, width = mw - 2, background = C.card, foreground = fg or C.text })
+      :setText(txt)
+    iy = iy + 1
+  end
+
+  line("At: " .. locStr(s.building.location), C.dim)
+  if s.kind == "reassign" and s.from then line("From: " .. cap(s.from), C.dim) end
   if s.kind == "recruit" then
-    lines = {
-      { "Recruit:  " .. s.candidate.name, C.note },
-      { "Best job: " .. (s.jobLabel or s.job) .. " (fit " .. s.candidate.score .. ")", C.good },
-      { "At:       " .. locStr(s.building.location), C.text },
-      { "Cost:     " .. (s.cost and (tostring(s.cost.count) .. " x " .. s.cost.displayName) or "?"), C.warn },
-      { "Manual steps:", C.accent2 },
-      { " 1. Find visitor at " .. locStr(s.visitorLoc), C.dim },
-      { " 2. Recruit at the Tavern (pay cost)", C.dim },
-      { " 3. Assign to " .. (s.jobLabel or s.job) .. " at " .. locStr(s.building.location), C.dim },
-    }
-  elseif s.kind == "assign" then
-    lines = {
-      { "Job:      " .. (s.jobLabel or s.job), C.text }, { "Building: " .. locStr(s.building.location), C.text },
-      { "Hire:     " .. s.candidate.name .. " (" .. s.candidate.score .. ")", C.good },
-      { "", C.text }, { "Manual steps:", C.accent2 },
-      { " 1. Go to " .. locStr(s.building.location), C.dim },
-      { " 2. Open hut GUI \26 Hire/Fire", C.dim }, { " 3. Slot in " .. s.candidate.name, C.dim },
-    }
-  elseif s.kind == "reassign" then
-    lines = {
-      { "Move:     " .. s.candidate.name, C.note },
-      { "From job: " .. tostring(s.from), C.text },
-      { "To job:   " .. (s.jobLabel or s.job) .. " (fit " .. s.candidate.score .. ")", C.good },
-      { "At:       " .. locStr(s.building.location), C.text },
-      { "Manual steps:", C.accent2 },
-      { " 1. Fire " .. s.candidate.name .. " from their " .. tostring(s.from) .. " hut", C.dim },
-      { " 2. Go to " .. locStr(s.building.location), C.dim },
-      { " 3. " .. (s.target and ("Fire " .. s.target.name .. ", hire " .. s.candidate.name)
-          or ("Hire " .. s.candidate.name)), C.dim },
-    }
+    line("Cost: " .. (s.cost and (tostring(s.cost.count) .. " x " .. s.cost.displayName) or "?"), C.warn)
+    line("Find: " .. locStr(s.visitorLoc), C.accent2)
+  end
+  line("Skills: " .. tostring(s.pri) .. " / " .. tostring(s.sec), C.accent2)
+
+  -- Skill bars.
+  local barX, levW = 15, 3
+  local barW = math.max(4, mw - barX - levW - 1)
+  local function bar(y, lvl, color)
+    local pct = math.max(0, math.min(100, math.floor((lvl / skills.MAX_SKILL) * 100 + 0.5)))
+    card:addProgressBar({ x = barX, y = y, width = barW, height = 1,
+      progress = pct, progressColor = color, background = C.screen, foreground = color })
+    card:addLabel({ x = barX + barW + 1, y = y, width = levW, background = C.card, foreground = color })
+      :setText(tostring(lvl))
+  end
+  local function skillGroup(name, candLvl, tgtLvl)
+    card:addLabel({ x = 2, y = iy, width = barX - 3, background = C.card, foreground = C.text })
+      :setText(tostring(name))
+    bar(iy, candLvl or 0, C.good); iy = iy + 1
+    if tgtLvl ~= nil then bar(iy, tgtLvl, C.bad); iy = iy + 1 end
+  end
+
+  local cand = s.candidate or {}
+  local tgt = s.target
+  skillGroup(s.pri, cand.pri, tgt and (tgt.pri or 0) or nil)
+  skillGroup(s.sec, cand.sec, tgt and (tgt.sec or 0) or nil)
+
+  if tgt then
+    line("green hire " .. (cand.name or "?") .. "   red cur " .. tgt.name, C.dim)
   else
-    lines = {
-      { "Job:      " .. (s.jobLabel or s.job), C.text }, { "Building: " .. locStr(s.building.location), C.text },
-      { "Fire:     " .. s.target.name .. " (" .. s.target.score .. ")", C.bad },
-      { "Hire:     " .. s.candidate.name .. " (" .. s.candidate.score .. ")", C.good },
-      { "Manual steps:", C.accent2 }, { " 1. Go to " .. locStr(s.building.location), C.dim },
-      { " 2. Open GUI \26 Hire/Fire", C.dim },
-      { " 3. Fire " .. s.target.name .. ", hire " .. s.candidate.name, C.dim },
-    }
+    line((s.kind == "recruit" and "recruit " or "hire ") .. (cand.name or "?"), C.dim)
   end
-  for _, ln in ipairs(lines) do
-    if row > my + mh - 3 then break end
-    draw.put(cx, row, ln[1], ln[2], C.card); row = row + 1
-  end
-  draw.put(cx, my + mh - 2, "API read-only; act in-game.", C.dim, C.card)
-  draw.button(cx, my + mh - 1, "CLOSE", C.btnOk, C.btnText, function() screen.modal = nil end)
+
+  -- CLOSE button (native).
+  card:addButton({ x = mw - 7, y = mh, width = 7, height = 1,
+    background = C.btnOk, foreground = C.btnText }):setText("CLOSE")
+    :onClick(function() screen.modal = nil; screen.env.redraw() end)
+end
+
+-- Rebuild only when the shown suggestion changes (render runs every tick).
+local function showNativeApply(screen, s)
+  if screen.nmodalSug == s and screen.nmodalFrame.get("visible") then return end
+  buildApplyModal(screen, s)
+  screen.nmodalSug = s
 end
 
 local function sectionsModal(screen, hooks)
@@ -393,17 +445,22 @@ function M.render(screen, data, state, hooks)
     drawFooter(screen, data, state, hooks)
   end
 
-  if screen.modal then
+  if screen.modal and screen.modal.kind == "apply" then
+    -- Native Basalt overlay; the draw modal stays hidden.
+    screen.modalFrame.set("visible", false)
+    showNativeApply(screen, screen.modal.sug)
+  elseif screen.modal and screen.modal.kind == "sections" then
+    hideNativeApply(screen)
     screen.modalFrame.set("visible", true)
     local mw = screen.modalDisp:getWindow()
     local btns = {}
     draw.setTarget(mw, screen.W, screen.H, btns)
     screen.modalButtons = btns
     mw.setBackgroundColor(C.screen); mw.clear()
-    if screen.modal.kind == "apply" then applyModal(screen, screen.modal.sug, data)
-    elseif screen.modal.kind == "sections" then sectionsModal(screen, hooks) end
+    sectionsModal(screen, hooks)
   else
     screen.modalFrame.set("visible", false)
+    hideNativeApply(screen)
   end
 end
 

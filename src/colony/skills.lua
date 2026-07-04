@@ -15,6 +15,7 @@ M.REASSIGN_MARGIN  = 4   -- min improvement to move an employed citizen to a bet
 M.PRIMARY_WEIGHT   = 1.0
 M.SECONDARY_WEIGHT = 0.5
 M.MAX_SUGGESTIONS  = 60
+M.MAX_SKILL        = 50   -- reference cap for skill-level bars in the UI
 
 M.JOB_SKILLS = {
   builder      = { "Adaptability", "Athletics" },

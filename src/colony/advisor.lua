@@ -19,7 +19,7 @@ local skills = require("colony.skills")
 local jobKey, locStr = util.jobKey, util.locStr
 local cap = util.capitalize
 local JOB_SKILLS, maxSlotsFor = skills.JOB_SKILLS, skills.maxSlotsFor
-local scoreFor = skills.scoreFor
+local scoreFor, skillLevel = skills.scoreFor, skills.skillLevel
 
 local M = {}
 
@@ -95,7 +95,9 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
       used[p.c.id] = true
       p.slot.free = p.slot.free - 1
       out[#out + 1] = { kind = "assign", job = p.slot.jk, building = { location = p.slot.loc },
-        candidate = { name = p.c.name, id = p.c.id, score = p.score }, gain = p.score }
+        pri = p.slot.pr, sec = p.slot.se,
+        candidate = { name = p.c.name, id = p.c.id, score = p.score,
+          pri = skillLevel(p.c, p.slot.pr), sec = skillLevel(p.c, p.slot.se) }, gain = p.score }
     end
   end
 
@@ -123,9 +125,14 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
   for _, r in ipairs(repl) do
     if not used[r.cand.id] then
       used[r.cand.id] = true
+      local tgt = byId[r.weak.id]
       out[#out + 1] = { kind = "replace", job = r.fb.jk, building = { location = r.fb.loc },
-        candidate = { name = r.cand.name, id = r.cand.id, score = r.cs },
-        target = { name = r.weak.name, id = r.weak.id, score = r.ws }, gain = r.gain }
+        pri = r.fb.pr, sec = r.fb.se,
+        candidate = { name = r.cand.name, id = r.cand.id, score = r.cs,
+          pri = skillLevel(r.cand, r.fb.pr), sec = skillLevel(r.cand, r.fb.se) },
+        target = { name = r.weak.name, id = r.weak.id, score = r.ws,
+          pri = tgt and skillLevel(tgt, r.fb.pr) or 0, sec = tgt and skillLevel(tgt, r.fb.se) or 0 },
+        gain = r.gain }
     end
   end
 
@@ -176,9 +183,11 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
       if target then
         used[m.e.c.id] = true
         target.free = target.free - 1
+        local sk = JOB_SKILLS[m.jk]
         out[#out + 1] = { kind = "reassign", job = m.jk, from = m.e.jc,
-          building = { location = target.loc },
-          candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score }, gain = m.gain }
+          building = { location = target.loc }, pri = sk[1], sec = sk[2],
+          candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score,
+            pri = skillLevel(m.e.c, sk[1]), sec = skillLevel(m.e.c, sk[2]) }, gain = m.gain }
       else
         -- No open slot: displace the weakest worker of the best full hut, if the
         -- gap clears the margin (and that worker isn't the same citizen).
@@ -189,10 +198,14 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
         end
         if bestRec and (m.score - bWs) >= math.max(REPL, REASS) then
           used[m.e.c.id] = true
+          local tgt = byId[bWeak.id]
           out[#out + 1] = { kind = "reassign", job = m.jk, from = m.e.jc,
-            building = { location = bestRec.loc },
-            candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score },
-            target = { name = bWeak.name, id = bWeak.id, score = bWs }, gain = m.score - bWs }
+            building = { location = bestRec.loc }, pri = bestRec.pr, sec = bestRec.se,
+            candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score,
+              pri = skillLevel(m.e.c, bestRec.pr), sec = skillLevel(m.e.c, bestRec.se) },
+            target = { name = bWeak.name, id = bWeak.id, score = bWs,
+              pri = tgt and skillLevel(tgt, bestRec.pr) or 0, sec = tgt and skillLevel(tgt, bestRec.se) or 0 },
+            gain = m.score - bWs }
         end
       end
     end
@@ -227,15 +240,18 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
       end
       if bestJk and bestScore > 0 and bestScore > (bestIdleFor[bestJk] or -1) then
         local rj = recsByJob[bestJk]
+        local sk = JOB_SKILLS[bestJk]
         local rc = v.recruitCost
         local cost = (type(rc) == "table")
           and { count = rc.count or 1, displayName = rc.displayName or rc.name or "?" } or nil
+        local vpri, vsec = skillLevel(v, sk[1]), skillLevel(v, sk[2])
         local target
         for _, rec in ipairs(rj.open) do if rec.free > 0 then target = rec; break end end
         if target then
           target.free = target.free - 1
           out[#out + 1] = { kind = "recruit", job = bestJk, building = { location = target.loc },
-            candidate = { name = v.name, score = bestScore }, cost = cost,
+            pri = sk[1], sec = sk[2],
+            candidate = { name = v.name, score = bestScore, pri = vpri, sec = vsec }, cost = cost,
             visitorLoc = v.location, gain = bestScore - math.max(0, bestIdleFor[bestJk] or 0) }
         else
           -- No open slot: displace the weakest worker of the best full hut if the
@@ -246,10 +262,13 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
             if w and ws < bWs then bestRec, bWeak, bWs = rec, w, ws end
           end
           if bestRec and (bestScore - bWs) >= REPL then
+            local tgt = byId[bWeak.id]
             out[#out + 1] = { kind = "recruit", job = bestJk, building = { location = bestRec.loc },
-              candidate = { name = v.name, score = bestScore },
-              target = { name = bWeak.name, id = bWeak.id, score = bWs }, cost = cost,
-              visitorLoc = v.location, gain = bestScore - bWs }
+              pri = sk[1], sec = sk[2],
+              candidate = { name = v.name, score = bestScore, pri = vpri, sec = vsec },
+              target = { name = bWeak.name, id = bWeak.id, score = bWs,
+                pri = tgt and skillLevel(tgt, sk[1]) or 0, sec = tgt and skillLevel(tgt, sk[2]) or 0 },
+              cost = cost, visitorLoc = v.location, gain = bestScore - bWs }
           end
         end
       end
