@@ -347,9 +347,12 @@ local function buildApplyModal(screen, s)
   local card = nmf:addFrame({ x = mx, y = my, width = mw, height = mh, background = C.card })
   screen.nmodalCard = card
 
-  card:addFrame({ x = 1, y = 1, width = mw, height = 1, background = C.cardTitle })
-  card:addLabel({ x = 2, y = 1, background = C.cardTitle, foreground = C.titleText })
-    :setText((VERB[s.kind] or "Apply") .. " " .. (cand.name or "?"))
+  -- One Label that paints its OWN full-width title strip (backgroundEnabled), so
+  -- the text is guaranteed on the C.cardTitle background -- a transparent label
+  -- over a separate strip frame could land on the card body with no contrast.
+  card:addLabel({ x = 1, y = 1, width = mw, height = 1, autoSize = false,
+    backgroundEnabled = true, background = C.cardTitle, foreground = C.titleText })
+    :setText(" " .. (VERB[s.kind] or "Apply") .. " " .. (cand.name or "?"))
 
   local iy = 3
   local function line(label, val, fg)
@@ -415,9 +418,9 @@ local function buildSectionsModal(screen, hooks)
   local card = nmf:addFrame({ x = mx, y = my, width = mw, height = mh, background = C.card })
   screen.nmodalCard = card
 
-  card:addFrame({ x = 1, y = 1, width = mw, height = 1, background = C.cardTitle })
-  card:addLabel({ x = 2, y = 1, width = mw - 2, background = C.cardTitle, foreground = C.titleText })
-    :setText("SECTIONS")
+  card:addLabel({ x = 1, y = 1, width = mw, height = 1, autoSize = false,
+    backgroundEnabled = true, background = C.cardTitle, foreground = C.titleText })
+    :setText(" SECTIONS")
   card:addLabel({ x = 2, y = 3, width = mw - 2, background = C.card, foreground = C.dim })
     :setText("Tap to toggle:")
 
