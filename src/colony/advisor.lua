@@ -96,7 +96,7 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
       p.slot.free = p.slot.free - 1
       out[#out + 1] = { kind = "assign", job = p.slot.jk, building = { location = p.slot.loc },
         pri = p.slot.pr, sec = p.slot.se,
-        candidate = { name = p.c.name, id = p.c.id, score = p.score,
+        candidate = { name = p.c.name, id = p.c.id, score = p.score, location = p.c.location,
           pri = skillLevel(p.c, p.slot.pr), sec = skillLevel(p.c, p.slot.se) }, gain = p.score }
     end
   end
@@ -128,7 +128,7 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
       local tgt = byId[r.weak.id]
       out[#out + 1] = { kind = "replace", job = r.fb.jk, building = { location = r.fb.loc },
         pri = r.fb.pr, sec = r.fb.se,
-        candidate = { name = r.cand.name, id = r.cand.id, score = r.cs,
+        candidate = { name = r.cand.name, id = r.cand.id, score = r.cs, location = r.cand.location,
           pri = skillLevel(r.cand, r.fb.pr), sec = skillLevel(r.cand, r.fb.se) },
         target = { name = r.weak.name, id = r.weak.id, score = r.ws,
           pri = tgt and skillLevel(tgt, r.fb.pr) or 0, sec = tgt and skillLevel(tgt, r.fb.se) or 0 },
@@ -186,7 +186,7 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
         local sk = JOB_SKILLS[m.jk]
         out[#out + 1] = { kind = "reassign", job = m.jk, from = m.e.jc,
           building = { location = target.loc }, pri = sk[1], sec = sk[2],
-          candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score,
+          candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score, location = m.e.c.location,
             pri = skillLevel(m.e.c, sk[1]), sec = skillLevel(m.e.c, sk[2]) }, gain = m.gain }
       else
         -- No open slot: displace the weakest worker of the best full hut, if the
@@ -201,7 +201,7 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
           local tgt = byId[bWeak.id]
           out[#out + 1] = { kind = "reassign", job = m.jk, from = m.e.jc,
             building = { location = bestRec.loc }, pri = bestRec.pr, sec = bestRec.se,
-            candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score,
+            candidate = { name = m.e.c.name, id = m.e.c.id, score = m.score, location = m.e.c.location,
               pri = skillLevel(m.e.c, bestRec.pr), sec = skillLevel(m.e.c, bestRec.se) },
             target = { name = bWeak.name, id = bWeak.id, score = bWs,
               pri = tgt and skillLevel(tgt, bestRec.pr) or 0, sec = tgt and skillLevel(tgt, bestRec.se) or 0 },
@@ -251,7 +251,8 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
           target.free = target.free - 1
           out[#out + 1] = { kind = "recruit", job = bestJk, building = { location = target.loc },
             pri = sk[1], sec = sk[2],
-            candidate = { name = v.name, score = bestScore, pri = vpri, sec = vsec }, cost = cost,
+            candidate = { name = v.name, id = v.id, score = bestScore, location = v.location,
+              pri = vpri, sec = vsec }, cost = cost,
             visitorLoc = v.location, gain = bestScore - math.max(0, bestIdleFor[bestJk] or 0) }
         else
           -- No open slot: displace the weakest worker of the best full hut if the
@@ -265,7 +266,8 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
             local tgt = byId[bWeak.id]
             out[#out + 1] = { kind = "recruit", job = bestJk, building = { location = bestRec.loc },
               pri = sk[1], sec = sk[2],
-              candidate = { name = v.name, score = bestScore, pri = vpri, sec = vsec },
+              candidate = { name = v.name, id = v.id, score = bestScore, location = v.location,
+                pri = vpri, sec = vsec },
               target = { name = bWeak.name, id = bWeak.id, score = bWs,
                 pri = tgt and skillLevel(tgt, sk[1]) or 0, sec = tgt and skillLevel(tgt, sk[2]) or 0 },
               cost = cost, visitorLoc = v.location, gain = bestScore - bWs }

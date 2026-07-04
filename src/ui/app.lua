@@ -315,6 +315,31 @@ function M.start(cfgModule)
     end
   end)
 
+  -- While a suggestion modal is open the full rescan is paused (so the list
+  -- doesn't churn under it), but the citizen/visitor it points at keeps MOVING.
+  -- Poll just their live position and update the modal's location label in place.
+  basalt.schedule(function()
+    while true do
+      sleep(1)
+      local open = false
+      for _, s in ipairs(screens) do if s.modal and s.modal.kind == "apply" then open = true; break end end
+      if open and not loading then
+        local cloc, vloc = {}, {}
+        local okc, cits = pcall(function() return colony.getCitizens() end)
+        if okc and type(cits) == "table" then
+          for _, c in ipairs(cits) do if c.id then cloc[c.id] = c.location end end
+        end
+        local okv, vis = pcall(function() return colony.getVisitors() end)
+        if okv and type(vis) == "table" then
+          for _, v in ipairs(vis) do if v.id then vloc[v.id] = v.location end end
+        end
+        for _, s in ipairs(screens) do
+          if s.modal and s.modal.kind == "apply" then layout.refreshModalLocation(s, cloc, vloc) end
+        end
+      end
+    end
+  end)
+
   -- Hourly update check.
   basalt.schedule(function()
     while true do sleep(3600); checkUpdate(); redrawAll() end

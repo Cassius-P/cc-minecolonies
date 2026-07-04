@@ -313,6 +313,8 @@ local function hideNativeModal(screen)
   end
   screen.nmodalSug = nil
   screen.nmodalKind = nil
+  screen.nmodalEntity = nil
+  screen.nmodalEntityLabel = nil
 end
 
 -- Action verb per kind; the title is "<Verb> <candidate name>".
@@ -334,10 +336,9 @@ local function buildApplyModal(screen, s)
   local isRecruit = s.kind == "recruit"
 
   -- Size the card to its content so nothing is cramped or clipped.
-  local nInfo = 1                                             -- Role
+  local nInfo = 3                                             -- Role + Job at + entity location
     + ((s.kind == "reassign" and s.from) and 1 or 0)          -- From
-    + (isRecruit and 2 or 1)                                  -- job loc (+ visitor loc, cost)
-    + (isRecruit and 1 or 0)
+    + (isRecruit and 1 or 0)                                  -- Cost
     + (tgt and 1 or 0)                                        -- Replacing
   local nSkill = tgt and 4 or 2
   local mw = math.min(W - 2, 42)
@@ -356,16 +357,21 @@ local function buildApplyModal(screen, s)
 
   local iy = 3
   local function line(label, val, fg)
-    card:addLabel({ x = 2, y = iy, background = C.card, foreground = fg or C.text })
-      :setText(label .. tostring(val))
+    local lbl = card:addLabel({ x = 2, y = iy, background = C.card, foreground = fg or C.text })
+    lbl:setText(label .. tostring(val))
     iy = iy + 1
+    return lbl
   end
 
   line("Role: ", s.jobLabel or cap(s.job), C.text)
   if s.kind == "reassign" and s.from then line("From: ", cap(s.from), C.dim) end
   line("Job at: ", locStr(s.building.location), C.dim)
+  -- Live entity position (citizen/visitor moves): polled + updated in place
+  -- while the modal is open. Store the label + identity for refreshModalLocation.
+  local ePrefix = isRecruit and "Visitor at: " or "Citizen at: "
+  screen.nmodalEntityLabel = line(ePrefix, locStr(cand.location), C.accent2)
+  screen.nmodalEntity = { isVisitor = isRecruit, id = cand.id, prefix = ePrefix }
   if isRecruit then
-    line("Visitor at: ", locStr(s.visitorLoc), C.accent2)
     line("Cost: ", s.cost and (tostring(s.cost.count) .. " x " .. s.cost.displayName) or "?", C.warn)
   end
   if tgt then line("Replacing: ", tgt.name, C.bad) end
@@ -456,6 +462,16 @@ local function showNativeSections(screen, hooks)
   if screen.nmodalKind == "sections" and screen.nmodalFrame.get("visible") then return end
   buildSectionsModal(screen, hooks)
   screen.nmodalKind = "sections"
+end
+
+-- Update the open apply-modal's entity-location label in place from fresh
+-- position maps (id -> location) for citizens and visitors. Lets the modal
+-- track a moving citizen/visitor without rescanning the whole suggestion list.
+function M.refreshModalLocation(screen, citizenLoc, visitorLoc)
+  local e, lbl = screen.nmodalEntity, screen.nmodalEntityLabel
+  if not (e and lbl and e.id) then return end
+  local loc = (e.isVisitor and visitorLoc or citizenLoc)[e.id]
+  if loc then lbl:setText(e.prefix .. locStr(loc)) end
 end
 
 ----------------------------------------------------------------------------
