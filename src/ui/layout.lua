@@ -291,10 +291,22 @@ local function applyModal(screen, s, data)
   local mh = math.min(H - 4, 13)
   local mx = math.floor((W - mw) / 2) + 1
   local my = math.floor((H - mh) / 2) + 1
-  local cx, cy = draw.card(mx, my, mw, mh, "APPLY SUGGESTION")
+  local cx, cy = draw.card(mx, my, mw, mh, s.kind == "recruit" and "RECRUIT VISITOR" or "APPLY SUGGESTION")
   local row = cy
   local lines
-  if s.kind == "assign" then
+  if s.kind == "recruit" then
+    lines = {
+      { "Visitor:  " .. s.candidate.name, C.note },
+      { "Best job: " .. (s.jobLabel or s.job), C.good },
+      { "At:       " .. locStr(s.building.location), C.text },
+      { "Cost:     " .. (s.cost and (tostring(s.cost.count) .. " x " .. s.cost.displayName) or "?"), C.warn },
+      { "Find at:  " .. locStr(s.visitorLoc), C.accent2 },
+      { "Manual steps:", C.accent2 },
+      { " 1. Go to visitor at " .. locStr(s.visitorLoc), C.dim },
+      { " 2. Recruit at the Tavern (pay cost)", C.dim },
+      { " 3. Assign to " .. (s.jobLabel or s.job) .. " at " .. locStr(s.building.location), C.dim },
+    }
+  elseif s.kind == "assign" then
     lines = {
       { "Job:      " .. (s.jobLabel or s.job), C.text }, { "Building: " .. locStr(s.building.location), C.text },
       { "Hire:     " .. s.candidate.name .. " (" .. s.candidate.score .. ")", C.good },
@@ -328,13 +340,8 @@ local function applyModal(screen, s, data)
     if row > my + mh - 3 then break end
     draw.put(cx, row, ln[1], ln[2], C.card); row = row + 1
   end
-  draw.put(cx, my + mh - 2, "API read-only; hire manually.", C.dim, C.card)
-  local bx = cx
-  bx = draw.button(bx, my + mh - 1, "HANDLED", C.btnOk, C.btnText, function()
-    for i, it in ipairs(data.suggestions) do if it == s then table.remove(data.suggestions, i); break end end
-    screen.modal = nil
-  end) + 1
-  draw.button(bx, my + mh - 1, "BACK", colors.lightGray, colors.black, function() screen.modal = nil end)
+  draw.put(cx, my + mh - 2, "API read-only; act in-game.", C.dim, C.card)
+  draw.button(cx, my + mh - 1, "CLOSE", C.btnOk, C.btnText, function() screen.modal = nil end)
 end
 
 local function sectionsModal(screen, hooks)

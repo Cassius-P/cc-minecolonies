@@ -62,6 +62,8 @@ function M.draw(x, y, w, h, screen, d)
         txt = ("assign %s \26 %s"):format(s.candidate.name, toLabel); col = C.good
       elseif s.kind == "reassign" then
         txt = ("%s: %s \26 %s"):format(s.candidate.name, cap(s.from), toLabel); col = C.note
+      elseif s.kind == "recruit" then
+        txt = ("recruit %s \26 %s"):format(s.candidate.name, toLabel); col = C.accent2
       else
         txt = ("%s \26 %s (rep %s)"):format(s.candidate.name, toLabel, s.target.name); col = C.warn
       end
