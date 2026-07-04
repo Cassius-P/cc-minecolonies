@@ -44,6 +44,9 @@ local function equipNames(item, af)
   return out
 end
 
+-- Exposed for unit tests (pure). Internal callers still use the local `equipNames`.
+M.equipNames = equipNames
+
 local function detectQuantityField(bridge, filter)
   local ok, d = pcall(function() return bridge.getItem(filter) end)
   if ok and d then
