@@ -97,6 +97,55 @@ end
 --------------------------------------------------------------------------
 -- computeRoster row shapes
 --------------------------------------------------------------------------
+--------------------------------------------------------------------------
+-- REASSIGN: employed citizen moves toward best-fit job with an open slot
+--------------------------------------------------------------------------
+t.case("reassign moves employed citizen to a better-fit open slot")
+do
+  local citizens = {
+    { id = 1, name = "Al", work = { type = "farmer" },
+      skills = { Adaptability = { level = 30 }, Athletics = { level = 10 }, Stamina = { level = 2 } } },
+  }
+  local buildings = {
+    { type = "farmer",  level = 1, location = { x = 0, y = 0, z = 0 },
+      citizens = { { id = 1, name = "Al" } } },       -- Al's current job (full 1/1)
+    { type = "builder", level = 1, location = { x = 1, y = 0, z = 0 }, citizens = {} }, -- open, better fit
+  }
+  local out = advisor.computeSuggestions(citizens, buildings, {}, { replace = 3, reassign = 4 })
+  t.eq(#out, 1)
+  t.eq(out[1].kind, "reassign")
+  t.eq(out[1].from, "farmer")
+  t.eq(out[1].job, "builder")
+  t.eq(out[1].candidate.id, 1)
+
+  local gated = advisor.computeSuggestions(citizens, buildings, {}, { replace = 3, reassign = 40 })
+  t.eq(#gated, 0, "gain 28 < reassign margin 40 -> suppressed")
+end
+
+--------------------------------------------------------------------------
+-- RECRUIT: strong visitor takes an open slot no idle citizen can beat
+--------------------------------------------------------------------------
+t.case("recruit fills an open slot from a strong visitor")
+do
+  local buildings = {
+    { type = "builder", level = 1, location = { x = 0, y = 0, z = 0 }, citizens = {} },
+    { type = "tavern",  level = 1, location = { x = 2, y = 0, z = 0 }, citizens = {} },
+  }
+  local visitors = {
+    { id = 100, name = "Vis", skills = { Adaptability = { level = 30 }, Athletics = { level = 10 } },
+      recruitCost = { count = 2, displayName = "Emerald" } },
+  }
+  local out = advisor.computeSuggestions({}, buildings, visitors, { replace = 3, reassign = 4 })
+  t.eq(#out, 1)
+  t.eq(out[1].kind, "recruit")
+  t.eq(out[1].job, "builder")
+  t.eq(out[1].candidate.id, 100)
+  t.eq(out[1].cost.count, 2)
+  t.eq(out[1].cost.displayName, "Emerald")
+  t.truthy(out[1].tavernLoc, "tavern location resolved")
+  t.eq(out[1].tavernLoc.x, 2)
+end
+
 t.case("computeRoster emits head + worker + slot rows")
 do
   local citizens = {

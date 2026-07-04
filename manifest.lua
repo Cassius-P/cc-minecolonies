@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.52",
+  version = "3.53",
 
   files = {
     -- entry + config + vendored dependency
@@ -29,7 +29,12 @@ return {
     { src = "src/common/settings.lua",    dst = "/common/settings.lua" },
     { src = "src/common/updater.lua",     dst = "/common/updater.lua" },
     -- colony
-    { src = "src/colony/skills.lua",   dst = "/colony/skills.lua" },
+    { src = "src/colony/skills.lua",       dst = "/colony/skills.lua" },
+    { src = "src/colony/roster_index.lua", dst = "/colony/roster_index.lua" },
+    { src = "src/colony/suggest/assign.lua",   dst = "/colony/suggest/assign.lua" },
+    { src = "src/colony/suggest/replace.lua",  dst = "/colony/suggest/replace.lua" },
+    { src = "src/colony/suggest/reassign.lua", dst = "/colony/suggest/reassign.lua" },
+    { src = "src/colony/suggest/recruit.lua",  dst = "/colony/suggest/recruit.lua" },
     { src = "src/colony/advisor.lua",  dst = "/colony/advisor.lua" },
     { src = "src/colony/requests.lua", dst = "/colony/requests.lua" },
     { src = "src/colony/api.lua",      dst = "/colony/api.lua" },
