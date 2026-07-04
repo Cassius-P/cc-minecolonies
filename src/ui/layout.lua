@@ -193,7 +193,7 @@ function M.buildScreen(screen, env)
   -- beneath; the card subtree is built on open and torn down on close.
   local nmf = screen.frame:addFrame({ x = 1, y = 1, width = screen.W, height = screen.H,
     background = C.screen })
-  nmf.set("z", 600); nmf.set("visible", false)
+  nmf.set("z", 600); nmf.set("visible", false); nmf.set("enabled", false)
   nmf:onClick(function() return true end)  -- swallow taps outside the card
   screen.nmodalFrame = nmf
 
@@ -287,95 +287,107 @@ local function drawFooter(screen, data, state, hooks)
   end
 end
 
--- Remove the modal's card subtree (Basalt has removeChild, not removeChildren).
+-- Remove EVERY child of the modal frame (Basalt has removeChild, not
+-- removeChildren). Clearing all of them -- not just the tracked card -- means a
+-- reopened modal can never render stale widgets from a previous suggestion.
 local function clearCard(screen)
-  if screen.nmodalCard then
-    screen.nmodalFrame:removeChild(screen.nmodalCard)
-    screen.nmodalCard = nil
+  local nmf = screen.nmodalFrame
+  local kids = nmf and nmf.get("children")
+  if type(kids) == "table" then
+    local copy = {}
+    for i = 1, #kids do copy[i] = kids[i] end
+    for i = 1, #copy do nmf:removeChild(copy[i]) end
   end
+  screen.nmodalCard = nil
 end
 
--- Hide + tear down whichever native modal is open.
+-- Hide + tear down whichever native modal is open. `enabled=false` matters: a
+-- full-screen frame can still intercept monitor_touch while merely invisible,
+-- which would swallow/misroute taps meant for the sections beneath.
 local function hideNativeModal(screen)
   local nmf = screen.nmodalFrame
-  if nmf and nmf.get("visible") then
+  if nmf then
     clearCard(screen)
     nmf.set("visible", false)
+    nmf.set("enabled", false)
   end
   screen.nmodalSug = nil
   screen.nmodalKind = nil
 end
 
-local KIND_TITLE = { assign = "ASSIGN", replace = "REPLACE", reassign = "REASSIGN", recruit = "RECRUIT VISITOR" }
+-- Action verb per kind; the title is "<Verb> <candidate name>".
+local VERB = { assign = "Hire", replace = "Replace", reassign = "Move", recruit = "Recruit" }
 
--- Build the native Basalt apply modal (real Labels / ProgressBars / Button) for
--- a suggestion. Skill levels render as bars: green = the hire, red = the worker
--- being displaced (when there is one), so the upgrade is visible at a glance.
+-- Build the native Basalt apply modal. Title = the action + who. Skill levels
+-- render as bars (green = the hire); when a worker is displaced, a red bar under
+-- each skill shows their level so the upgrade is visible at a glance.
 local function buildApplyModal(screen, s)
   local W, H = screen.W, screen.H
   local nmf = screen.nmodalFrame
   clearCard(screen)
   nmf.set("background", C.screen)
   nmf.set("visible", true)
+  nmf.set("enabled", true)
 
-  local mw = math.min(W - 2, 46)
-  local mh = math.min(H - 2, 14)
+  local cand = s.candidate or {}
+  local tgt = s.target
+  local isRecruit = s.kind == "recruit"
+
+  -- Size the card to its content so nothing is cramped or clipped.
+  local nInfo = 1                                             -- Role
+    + ((s.kind == "reassign" and s.from) and 1 or 0)          -- From
+    + (isRecruit and 2 or 1)                                  -- job loc (+ visitor loc, cost)
+    + (isRecruit and 1 or 0)
+    + (tgt and 1 or 0)                                        -- Replacing
+  local nSkill = tgt and 4 or 2
+  local mw = math.min(W - 2, 42)
+  local mh = math.min(H - 2, 3 + nInfo + 1 + nSkill + 1)
   local mx = math.floor((W - mw) / 2) + 1
   local my = math.floor((H - mh) / 2) + 1
   local card = nmf:addFrame({ x = mx, y = my, width = mw, height = mh, background = C.card })
   screen.nmodalCard = card
 
-  -- Title strip.
   card:addFrame({ x = 1, y = 1, width = mw, height = 1, background = C.cardTitle })
-  card:addLabel({ x = 2, y = 1, width = mw - 2, background = C.cardTitle, foreground = C.titleText })
-    :setText((KIND_TITLE[s.kind] or "APPLY") .. " - " .. (s.jobLabel or s.job))
+  card:addLabel({ x = 2, y = 1, background = C.cardTitle, foreground = C.titleText })
+    :setText((VERB[s.kind] or "Apply") .. " " .. (cand.name or "?"))
 
   local iy = 3
-  local function line(txt, fg)
-    card:addLabel({ x = 2, y = iy, width = mw - 2, background = C.card, foreground = fg or C.text })
-      :setText(txt)
+  local function line(label, val, fg)
+    card:addLabel({ x = 2, y = iy, background = C.card, foreground = fg or C.text })
+      :setText(label .. tostring(val))
     iy = iy + 1
   end
 
-  line("At: " .. locStr(s.building.location), C.dim)
-  if s.kind == "reassign" and s.from then line("From: " .. cap(s.from), C.dim) end
-  if s.kind == "recruit" then
-    line("Cost: " .. (s.cost and (tostring(s.cost.count) .. " x " .. s.cost.displayName) or "?"), C.warn)
-    line("Find: " .. locStr(s.visitorLoc), C.accent2)
+  line("Role: ", s.jobLabel or cap(s.job), C.text)
+  if s.kind == "reassign" and s.from then line("From: ", cap(s.from), C.dim) end
+  line("Job at: ", locStr(s.building.location), C.dim)
+  if isRecruit then
+    line("Visitor at: ", locStr(s.visitorLoc), C.accent2)
+    line("Cost: ", s.cost and (tostring(s.cost.count) .. " x " .. s.cost.displayName) or "?", C.warn)
   end
-  line("Skills: " .. tostring(s.pri) .. " / " .. tostring(s.sec), C.accent2)
+  if tgt then line("Replacing: ", tgt.name, C.bad) end
 
-  -- Skill bars.
-  local barX, levW = 15, 3
-  local barW = math.max(4, mw - barX - levW - 1)
-  local function bar(y, lvl, color)
+  iy = iy + 1  -- gap before the skill bars
+
+  local barX, levW = 14, 3
+  local barW = math.max(4, mw - barX - levW - 2)
+  local function bar(name, y, lvl, color)
+    if name ~= "" then
+      card:addLabel({ x = 2, y = y, background = C.card, foreground = color }):setText(name)
+    end
     local pct = math.max(0, math.min(100, math.floor((lvl / skills.MAX_SKILL) * 100 + 0.5)))
     card:addProgressBar({ x = barX, y = y, width = barW, height = 1,
       progress = pct, progressColor = color, background = C.screen, foreground = color })
-    card:addLabel({ x = barX + barW + 1, y = y, width = levW, background = C.card, foreground = color })
+    card:addLabel({ x = barX + barW + 1, y = y, background = C.card, foreground = color })
       :setText(tostring(lvl))
   end
-  local function skillGroup(name, candLvl, tgtLvl)
-    card:addLabel({ x = 2, y = iy, width = barX - 3, background = C.card, foreground = C.text })
-      :setText(tostring(name))
-    bar(iy, candLvl or 0, C.good); iy = iy + 1
-    if tgtLvl ~= nil then bar(iy, tgtLvl, C.bad); iy = iy + 1 end
-  end
+  bar(tostring(s.pri), iy, cand.pri or 0, C.good); iy = iy + 1
+  if tgt then bar("", iy, tgt.pri or 0, C.bad); iy = iy + 1 end
+  bar(tostring(s.sec), iy, cand.sec or 0, C.good); iy = iy + 1
+  if tgt then bar("", iy, tgt.sec or 0, C.bad); iy = iy + 1 end
 
-  local cand = s.candidate or {}
-  local tgt = s.target
-  skillGroup(s.pri, cand.pri, tgt and (tgt.pri or 0) or nil)
-  skillGroup(s.sec, cand.sec, tgt and (tgt.sec or 0) or nil)
-
-  if tgt then
-    line("green hire " .. (cand.name or "?") .. "   red cur " .. tgt.name, C.dim)
-  else
-    line((s.kind == "recruit" and "recruit " or "hire ") .. (cand.name or "?"), C.dim)
-  end
-
-  -- CLOSE button (native).
-  card:addButton({ x = mw - 7, y = mh, width = 7, height = 1,
-    background = C.btnOk, foreground = C.btnText }):setText("CLOSE")
+  card:addButton({ x = mw - 8, y = mh, width = 8, height = 1,
+    background = C.btnOk, foreground = C.btnText }):setText("Close")
     :onClick(function() screen.modal = nil; screen.env.redraw() end)
 end
 
@@ -394,6 +406,7 @@ local function buildSectionsModal(screen, hooks)
   clearCard(screen)
   nmf.set("background", C.screen)
   nmf.set("visible", true)
+  nmf.set("enabled", true)
 
   local mw = math.min(W - 2, 34)
   local mh = math.min(H - 2, #SECTION_ORDER + 5)
@@ -412,17 +425,20 @@ local function buildSectionsModal(screen, hooks)
     local ry = 3 + i
     if ry <= mh - 2 then
       local on = isShown(screen, id)
-      local btn = card:addButton({ x = 2, y = ry, width = mw - 3, height = 1,
-        background = on and C.good or C.card, foreground = on and colors.black or C.dim })
-      btn:setText((on and "[x] " or "[ ] ") .. SECTIONS[id].title)
-      btn:onClick(function(self)
+      local title = SECTIONS[id].title
+      -- CheckBox renders its text left-aligned with a transparent background, so
+      -- the row isn't a solid green block and the box lines up on the left. The
+      -- CheckBox auto-toggles its own `checked`; we mirror that into `enabled`
+      -- (derived from our own state, so it's correct regardless of dispatch order).
+      local cb = card:addCheckBox({ x = 2, y = ry, height = 1,
+        text = "[ ] " .. title, checkedText = "[x] " .. title,
+        checked = on, foreground = on and C.text or C.dim })
+      cb:onClick(function(self)
         local now = not isShown(screen, id)
         screen.enabled[id] = now
+        self:setForeground(now and C.text or C.dim)
         M.applyRects(screen)
         hooks.save()
-        self:setText((now and "[x] " or "[ ] ") .. SECTIONS[id].title)
-        self:setBackground(now and C.good or C.card)
-        self:setForeground(now and colors.black or C.dim)
         screen.env.redraw()
       end)
     end
