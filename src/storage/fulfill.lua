@@ -68,7 +68,11 @@ end
 -- Resolve a request to fingerprint-based candidates.
 local function resolve(bridge, item, af)
   local out = {}
-  if item.equipment and not item.fingerprint then
+  if item.equipment then
+    -- Resolve equipment by material-name range, NOT the request's fingerprint:
+    -- the request-side item fingerprint hashes differently from the stored
+    -- stack, so a fingerprint lookup misses items that are in stock/craftable.
+    -- The by-name getItem returns the correct storage-side fingerprint to export.
     for _, name in ipairs(equipNames(item, af)) do
       local c = lookup(bridge, { name = name }); if c then out[#out + 1] = c end
     end

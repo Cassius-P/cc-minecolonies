@@ -8,8 +8,6 @@
 
 local M = {}
 
-M.VERSION = "3.39"
-
 M.config = {
   theme          = "deepslate",   -- deepslate | smooth_stone | sandstone | basalt (GLOBAL)
   refreshSeconds = 5,

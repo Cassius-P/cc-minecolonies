@@ -26,9 +26,9 @@ local deepCopy = util.deepCopy
 
 function M.start(cfgModule)
   local config = cfgModule.config
-  local VERSION = cfgModule.VERSION
-  config.VERSION = VERSION                       -- fallback for the update check
-  local installedVersion = updater.installed(VERSION)  -- from /version stamp
+  -- Single version source: the /version stamp written by install.lua from
+  -- manifest.version. "?" until a stamped install exists.
+  local installedVersion = updater.installed()
   log.init(config)
 
   -- Required: colony integrator (adjacent or over a wired modem).

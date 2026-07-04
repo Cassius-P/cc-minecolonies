@@ -2,14 +2,14 @@
 -- common/updater.lua -- installed version + GitHub update check.
 --
 -- Single source of truth for the *installed* version is the /version stamp
--- written by install.lua (falls back to config.VERSION only when absent). The
+-- written by install.lua from manifest.version. The
 -- update check compares that stamp with the version in the repo's manifest.lua,
 -- fetched with cache-busting so a stale CDN copy doesn't mask a new release.
 ----------------------------------------------------------------------------
 
 local M = {}
 
--- Installed version = /version stamp, else fallback (config.VERSION).
+-- Installed version = /version stamp, else "?" (or an explicit fallback).
 function M.installed(fallback)
   if fs.exists("/version") then
     local f = fs.open("/version", "r")
@@ -49,7 +49,7 @@ end
 function M.check(config)
   local repo = config and config.repo
   if type(repo) ~= "table" then return nil end
-  local localv = M.installed(config.VERSION)
+  local localv = M.installed()
   local remote = fetchRemoteVersion(repo)
   if not remote then return nil end
   return { available = (localv ~= "?" and remote ~= localv), localv = localv, remote = remote }
