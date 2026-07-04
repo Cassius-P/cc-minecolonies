@@ -167,7 +167,13 @@ function M.start(cfgModule)
     basalt.schedule(function()
       local ok, link = pcall(doDump, sel or {})
       state.dumping = false
-      if ok and link and link ~= "" then state.dumpLink = link else state.dumpError = tostring(link) end
+      if ok and link and link ~= "" then
+        state.dumpLink = link
+        -- CC has no OS clipboard (sandboxed); save the link to a file instead.
+        pcall(function() local f = fs.open("/dump_link.txt", "w"); f.write(link); f.close() end)
+      else
+        state.dumpError = tostring(link)
+      end
       redrawAll()
     end)
   end
@@ -256,6 +262,8 @@ function M.start(cfgModule)
       doInstall()
     elseif ch == "d" then
       if termUI and termUI.triggerDump then termUI.triggerDump() end
+    elseif ch == "a" then
+      if termUI and termUI.toggleAllDump then termUI.toggleAllDump() end
     elseif type(ch) == "string" and ch:match("%d") then
       reassignScreen(tonumber(ch)); redrawAll()
     end

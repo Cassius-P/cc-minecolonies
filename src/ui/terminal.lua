@@ -95,11 +95,13 @@ function M.build(mainFrame, ctx)
     local cb = dm:addCheckBox({ x = 2, y = 2 + i, checked = true, text = " " .. dinfo[2] })
     ui.dumpCbs[#ui.dumpCbs + 1] = { key = dinfo[1], cb = cb }
   end
+  ui._dumpAll = true  -- all checked initially
   local by = 2 + #defs + 2
   ui.dumpBtn = dm:addButton({ x = 2, y = by, width = 16, height = 1 })
     :setText("Create dump"):setBackground(colors.blue):setForeground(colors.white)
     :onClick(function() if ctx.onDump then ctx.onDump(M.dumpSelection(ui)) end end)
-  dm:addLabel({ x = 20, y = by, width = tw - 20, foreground = colors.gray }):setText("or press 'd'")
+  dm:addLabel({ x = 20, y = by, width = tw - 20, foreground = colors.gray })
+    :setText("d dump   a all/none")
   ui.lDump = dm:addLabel({ x = 2, y = by + 2, width = tw - 2 })
 
   ------------------------------------------------------------------ Update
@@ -117,6 +119,10 @@ function M.build(mainFrame, ctx)
   return {
     update = function(state, screens) M._update(ui, ctx, state, screens) end,
     triggerDump = function() if ctx.onDump then ctx.onDump(M.dumpSelection(ui)) end end,
+    toggleAllDump = function()
+      ui._dumpAll = not ui._dumpAll
+      for _, e in ipairs(ui.dumpCbs) do e.cb.set("checked", ui._dumpAll) end
+    end,
   }
 end
 
@@ -172,7 +178,7 @@ function M._update(ui, ctx, state, screens)
   elseif state.dumpError then
     set(ui, "dump", ui.lDump, "Failed: " .. tostring(state.dumpError):sub(1, 40), colors.red)
   elseif state.dumpLink then
-    set(ui, "dump", ui.lDump, state.dumpLink, colors.lime)
+    set(ui, "dump", ui.lDump, state.dumpLink .. "  (saved /dump_link.txt)", colors.lime)
   else
     set(ui, "dump", ui.lDump, "", colors.white)
   end
