@@ -26,10 +26,17 @@ function M.draw(x, y, w, h, screen, d)
   draw.put(cx, cy, string.format(" %.1f", d.happiness), colors.black, hc)
   draw.put(cx, cy + barH, "Happiness", C.dim, C.card)
 
-  -- Population bar
+  -- Population bar. maxPop = housing/bed cap, so this is citizens/beds. It can be
+  -- exceeded (bed removed under a resident) -> vbar clamps to full, so we signal
+  -- over-capacity by colour (red) + the value reads "pop/max" (e.g. 12/10).
   local px = cx + bw + gap
-  draw.vbar(px, cy, bw, barH, d.maxPop > 0 and d.pop / d.maxPop or 0, C.accent)
-  draw.put(px, cy, string.format(" %d", d.pop), colors.black, C.accent)
+  local hasCap = d.maxPop > 0
+  local over = hasCap and d.pop > d.maxPop
+  local full = hasCap and d.pop >= d.maxPop
+  local pc = over and C.bad or (full and C.warn or C.accent)
+  draw.vbar(px, cy, bw, barH, hasCap and d.pop / d.maxPop or 0, pc)
+  draw.put(px, cy, hasCap and string.format(" %d/%d", d.pop, d.maxPop) or string.format(" %d", d.pop),
+    colors.black, pc)
   draw.put(px, cy + barH, "Population", C.dim, C.card)
 
   -- Labelled non-chart info to the right of the bars
@@ -38,6 +45,16 @@ function M.draw(x, y, w, h, screen, d)
     local threat = d.attack and "UNDER ATTACK" or (d.raid and "RAID SOON" or "Secure")
     draw.put(tx, cy, "Threat:", C.dim, C.card)
     draw.put(tx, cy + 1, threat, (d.attack or d.raid) and C.bad or C.good, C.card)
+    -- Beds: free housing, or homeless count in red when citizens exceed beds.
+    if hasCap then
+      local free = d.maxPop - d.pop
+      draw.put(tx, cy + 2, "Beds:", C.dim, C.card)
+      if free < 0 then
+        draw.put(tx + 6, cy + 2, ("%d homeless"):format(-free), C.bad, C.card)
+      else
+        draw.put(tx + 6, cy + 2, tostring(free), free == 0 and C.warn or C.good, C.card)
+      end
+    end
     draw.put(tx, cy + 3, "Sites:", C.dim, C.card)
     draw.put(tx + 7, cy + 3, tostring(d.sites), C.text, C.card)
     draw.put(tx, cy + 4, "Graves:", C.dim, C.card)
