@@ -1,0 +1,55 @@
+-- Tests for storage/plan.lua pure fulfill decisions.
+local t    = require("helper")
+local plan = require("storage.plan")
+
+t.case("equipNames matches fulfill.equipNames (moved here)")
+do
+  local out = plan.equipNames({ equipPiece = "Sword", equipment = true, item_name = "x" },
+    { equipmentLevel = "Iron" })
+  t.eq(#out, 4)
+  t.eq(out[4], "minecraft:iron_sword")
+end
+
+t.case("skipSet / shouldSkip")
+do
+  local set = plan.skipSet({ "minecraft:enchanted_book", "minecraft:torch" })
+  t.truthy(plan.shouldSkip({ item_name = "minecraft:torch" }, set))
+  t.falsy(plan.shouldSkip({ item_name = "minecraft:stone" }, set))
+  t.falsy(plan.shouldSkip({ item_name = "x" }, plan.skipSet(nil)), "nil list -> empty set")
+end
+
+t.case("selectCandidates picks first stocked + first craftable")
+do
+  local cands = {
+    { amount = 0, craftable = false, filter = { name = "a" } },
+    { amount = 5, craftable = true,  filter = { name = "b" } },
+    { amount = 9, craftable = true,  filter = { name = "c" } },
+  }
+  local stocked, craft = plan.selectCandidates(cands)
+  t.eq(stocked.name, "b", "first with amount>0")
+  t.eq(craft.name, "b", "first craftable")
+
+  local none = plan.selectCandidates({ { amount = 0, craftable = false, filter = {} } })
+  t.eq(none, nil, "nothing stocked")
+end
+
+t.case("exportToken")
+do
+  local tok, done = plan.exportToken(10, 10)
+  t.eq(tok, "filled"); t.truthy(done)
+  local tok2, done2 = plan.exportToken(3, 10)
+  t.eq(tok2, "partial"); t.falsy(done2)
+end
+
+t.case("craftResultToken")
+do
+  t.eq(plan.craftResultToken(true), "crafting")
+  t.eq(plan.craftResultToken(false), "partial")
+end
+
+t.case("withCount clones filter and adds count")
+do
+  local f = plan.withCount({ fingerprint = "fp" }, 7)
+  t.eq(f.fingerprint, "fp")
+  t.eq(f.count, 7)
+end
