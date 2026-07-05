@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.57",
+  version = "3.58",
 
   files = {
     -- entry + config + vendored dependency
@@ -17,6 +17,8 @@ return {
     { src = "src/main.lua",    dst = "/main.lua" },
     { src = "src/config.lua",  dst = "/config.lua" },
     { src = "vendor/basalt.lua", dst = "/basalt.lua" },
+    -- application layer
+    { src = "src/app/store.lua", dst = "/app/store.lua" },
     -- self-updating installer/updater
     { src = "install.lua",   dst = "/install.lua" },
     { src = "update.lua",    dst = "/update.lua" },

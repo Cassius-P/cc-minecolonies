@@ -19,6 +19,7 @@ local layout   = require("ui.layout")
 local terminal = require("ui.terminal")
 local loaderUI = require("ui.loader")
 local api      = require("colony.api")
+local store    = require("app.store")
 
 local M = {}
 
@@ -42,9 +43,7 @@ function M.start(cfgModule)
   ----------------------------------------------------------------------------
   -- State
   ----------------------------------------------------------------------------
-  local state = { data = nil, msg = "", countdown = config.refreshSeconds,
-    quit = false, needScan = false, theme = config.theme, update = nil,
-    booting = true }   -- true during the boot splash / cancel window
+  local state = store.new(config)   -- explicit state container (app/store.lua)
   local screens, screenByName = {}, {}
   local loading, loader = true, nil   -- Basalt loading overlay (set up below)
 
@@ -86,21 +85,18 @@ function M.start(cfgModule)
   local function rescan()
     local ok, res = pcall(api.gather, { colony = colony, config = config, log = log })
     if ok then
-      state.data = res
-      state.msg = string.format("%d workers  %d req", #res.suggestions, #res.requests)
+      state.setData(res, string.format("%d workers  %d req", #res.suggestions, #res.requests))
     else
-      state.msg = "Scan error: " .. tostring(res)
+      state.setScanError("Scan error: " .. tostring(res))
     end
-    state.needScan = false
-    state.countdown = config.refreshSeconds
   end
 
   local function checkUpdate()
     local ok, res = pcall(updater.check, config)
     if ok and type(res) == "table" then
-      state.update = res; state.checkFailed = false
+      state.setUpdate(res)
     else
-      state.checkFailed = true
+      state.setUpdateFailed()
     end
   end
 
@@ -113,9 +109,9 @@ function M.start(cfgModule)
   -- Update actions (used by both the keyboard shortcuts and the tab button).
   local function doCheck()
     basalt.schedule(function()
-      state.checking = true; redrawAll()
+      state.setChecking(true); redrawAll()
       checkUpdate()
-      state.checking = false; redrawAll()
+      state.setChecking(false); redrawAll()
     end)
   end
   -- Hand off to the updater cleanly: stop our Basalt app, then run /update.lua
@@ -123,7 +119,7 @@ function M.start(cfgModule)
   -- so the progress bar no longer flickers against our still-live UI.
   local function doInstall()
     if loading or state.pendingInstall then return end
-    state.pendingInstall = true
+    state.beginInstall()
     basalt.stop()
   end
 
@@ -133,7 +129,7 @@ function M.start(cfgModule)
     config.suggestions = config.suggestions or { replaceMargin = 1, reassignMargin = 1 }
     config.suggestions[key] = math.max(0, math.min(20, math.floor(n)))
     settings.save(config, screens)
-    state.needScan = true      -- apply on the next tick, NOT per keystroke (was laggy)
+    state.markScan()      -- apply on the next tick, NOT per keystroke (was laggy)
   end
 
   -- Dump selected colony data to paste.rs (JSON) and show the link.
@@ -170,16 +166,15 @@ function M.start(cfgModule)
 
   local function onDump(sel)
     if state.dumping then return end
-    state.dumping = true; state.dumpLink = nil; state.dumpError = nil; redrawAll()
+    state.beginDump(); redrawAll()
     basalt.schedule(function()
       local ok, link = pcall(doDump, sel or {})
-      state.dumping = false
       if ok and link and link ~= "" then
-        state.dumpLink = link
+        state.finishDump(link, nil)
         -- CC has no OS clipboard (sandboxed); save the link to a file instead.
         pcall(function() local f = fs.open("/dump_link.txt", "w"); f.write(link); f.close() end)
       else
-        state.dumpError = tostring(link)
+        state.finishDump(nil, tostring(link))
       end
       redrawAll()
     end)
@@ -201,7 +196,7 @@ function M.start(cfgModule)
   hooks.save        = function() settings.save(config, screens) end
   hooks.cycleTheme  = function()
     local n = theme.cycle(config)
-    theme.apply(n, screens, config); state.theme = n
+    theme.apply(n, screens, config); state.setTheme(n)
     settings.save(config, screens)
   end
 
@@ -234,11 +229,11 @@ function M.start(cfgModule)
   -- Settings, then build the Basalt section frames, then theme + first scan
   ----------------------------------------------------------------------------
   settings.load(config, screens, theme.isTheme)
-  state.theme = config.theme
+  state.setTheme(config.theme)
 
   local env = {
     state = state, hooks = hooks, redraw = redrawAll, reassign = reassignScreen,
-    stop = function() state.quit = true; basalt.stop() end,
+    stop = function() state.setQuit(); basalt.stop() end,
   }
   for _, s in ipairs(screens) do layout.buildScreen(s, env) end
 
@@ -255,7 +250,7 @@ function M.start(cfgModule)
   ----------------------------------------------------------------------------
   -- During the boot splash, ANY key cancels auto-launch and drops to the shell.
   basalt.onEvent("key", function()
-    if state.booting then state.cancelBoot = true; basalt.stop() end
+    if state.booting then state.cancelBooting(); basalt.stop() end
   end)
 
   basalt.onEvent("char", function(ch)
@@ -294,7 +289,7 @@ function M.start(cfgModule)
       if state.cancelBoot then return end
       sleep(0.3)
     end
-    state.booting = false
+    state.endBoot()
     loader.show("Loading colony data")
     rescan()
     loading = false
@@ -307,7 +302,7 @@ function M.start(cfgModule)
   basalt.schedule(function()
     while true do
       sleep(1)
-      state.countdown = state.countdown - 1
+      state.tick()
       local anyModal = false
       for _, s in ipairs(screens) do if s.modal then anyModal = true; break end end
       if (state.needScan or state.countdown <= 0) and not anyModal and not loading then rescan() end
