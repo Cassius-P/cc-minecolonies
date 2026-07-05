@@ -1,7 +1,8 @@
 ----------------------------------------------------------------------------
 -- colony/roster_index.lua -- prepare the shared, derived index used by BOTH the
--- suggestion passes (colony/suggest/*) and computeRoster, so the building
--- numbering / citizen classification is computed ONCE per scan.
+-- suggestion passes (colony/suggest/*) and computeRoster. The caller that runs
+-- them back-to-back (colony/shape, every scan) prepares it once and passes it
+-- to both advisor entry points; each also self-prepares when called standalone.
 --
 -- prepare(citizens, buildings) -> index with:
 --   byId        id -> citizen

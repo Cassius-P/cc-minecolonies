@@ -146,6 +146,47 @@ do
   t.eq(out[1].tavernLoc.x, 2)
 end
 
+--------------------------------------------------------------------------
+-- Shared-index threading: passing a prepared index gives identical results
+--------------------------------------------------------------------------
+t.case("shared roster index produces same suggestions + roster")
+do
+  local index = require("colony.roster_index")
+  local citizens = {
+    { id = 1, name = "Al", skills = { Adaptability = { level = 20 }, Athletics = { level = 10 } } },
+    { id = 2, name = "Wk", work = { type = "builder" },
+      skills = { Adaptability = { level = 5 }, Athletics = { level = 5 } } },
+  }
+  local buildings = {
+    { type = "builder", level = 1, location = { x = 0, y = 0, z = 0 },
+      citizens = { { id = 2, name = "Wk" } } },
+    { type = "farmer", level = 1, location = { x = 1, y = 0, z = 0 }, citizens = {} },
+  }
+  local margins = { replace = 1, reassign = 4 }
+
+  -- Standalone (self-prepared) baseline.
+  local sugsA = advisor.computeSuggestions(citizens, buildings, {}, margins)
+  local rostA = advisor.computeRoster(citizens, buildings, sugsA)
+
+  -- One shared index threaded through both (the shape.buildData path).
+  local ix = index.prepare(citizens, buildings)
+  local sugsB = advisor.computeSuggestions(citizens, buildings, {}, margins, ix)
+  local rostB = advisor.computeRoster(citizens, buildings, sugsB, ix)
+
+  t.eq(#sugsB, #sugsA, "same suggestion count")
+  for i = 1, #sugsA do
+    t.eq(sugsB[i].kind, sugsA[i].kind, "kind " .. i)
+    t.eq(sugsB[i].candidate.id, sugsA[i].candidate.id, "candidate " .. i)
+    t.eq(sugsB[i].jobLabel, sugsA[i].jobLabel, "label " .. i)
+  end
+  t.eq(#rostB, #rostA, "same roster row count")
+  for i = 1, #rostA do
+    t.eq(rostB[i].kind, rostA[i].kind, "row kind " .. i)
+    t.eq(rostB[i].name, rostA[i].name, "row name " .. i)
+    t.eq(rostB[i].status, rostA[i].status, "row status " .. i)
+  end
+end
+
 t.case("computeRoster emits head + worker + slot rows")
 do
   local citizens = {

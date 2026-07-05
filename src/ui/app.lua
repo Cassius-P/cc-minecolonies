@@ -23,6 +23,7 @@ local store    = require("app.store")
 local dumpService = require("app.dump_service")
 local keys     = require("app.keys")
 local teardown = require("app.teardown")
+local colonyPort = require("common.ports.colony")
 
 local M = {}
 
@@ -39,6 +40,7 @@ function M.start(cfgModule)
   local colony = perif.findColony(config)
   if not colony then error("No colony_integrator found (adjacent or via wired modem)", 0) end
   if not colony.isInColony() then error("Integrator is not inside a colony", 0) end
+  local colPort = colonyPort.new(colony)   -- guarded reads for the modal poll + dump
 
   local monNames = perif.listMonitors(config)
   if #monNames == 0 then error("No monitor found (adjacent or via wired modem)", 0) end
@@ -141,7 +143,7 @@ function M.start(cfgModule)
     if state.dumping then return end
     state.beginDump(); redrawAll()
     basalt.schedule(function()
-      local ok, link = pcall(dumpService.run, colony, sel or {})
+      local ok, link = pcall(dumpService.run, colPort.raw(), sel or {})
       if ok and link and link ~= "" then
         state.finishDump(link, nil)
         -- CC has no OS clipboard (sandboxed); save the link to a file instead.
@@ -271,9 +273,9 @@ function M.start(cfgModule)
       for _, s in ipairs(screens) do if s.modal and s.modal.kind == "apply" then open = true; break end end
       if open and not loading then
         local cloc = {}
-        local okc, cits = pcall(function() return colony.getCitizens() end)
-        if okc and type(cits) == "table" then
-          for _, c in ipairs(cits) do if c.id then cloc[c.id] = c.location end end
+        -- Guarded read via the colony port (returns {} when the peripheral errors).
+        for _, c in ipairs(colPort.citizens()) do
+          if c.id then cloc[c.id] = c.location end
         end
         for _, s in ipairs(screens) do
           if s.modal and s.modal.kind == "apply" then layout.refreshModalLocation(s, cloc) end

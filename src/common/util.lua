@@ -34,4 +34,11 @@ function M.deepCopy(t)
   return c
 end
 
+-- Run fn under pcall; return its value, or `d` when it throws or yields nil.
+-- The standard guard for peripheral calls that can error across mod versions.
+function M.safeGet(fn, d)
+  local ok, v = pcall(fn)
+  if ok and v ~= nil then return v else return d end
+end
+
 return M

@@ -12,9 +12,11 @@
 --   port.raw()      -> the wrapped peripheral (escape hatch, e.g. the dump)
 ----------------------------------------------------------------------------
 
+local util = require("common.util")
+
 local M = {}
 
-local function g(fn, d) local ok, v = pcall(fn); if ok and v ~= nil then return v else return d end end
+local g = util.safeGet
 
 function M.new(integrator)
   local c = integrator

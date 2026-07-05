@@ -8,8 +8,13 @@
 --   * replace  - an idle citizen replaces an under-skilled worker in a full hut.
 --   * reassign - an EMPLOYED citizen would be a much better fit at another job.
 --   * recruit  - a Tavern visitor beats every candidate for a job.
--- computeRoster flattens every building + workers into display rows, reusing
--- the SAME index (no re-derivation of building numbering / byId).
+-- computeRoster flattens every building + workers into display rows.
+--
+-- Both functions accept an optional pre-prepared index (colony/roster_index) so
+-- a caller running them back-to-back (colony/shape does, every scan) prepares it
+-- ONCE and shares it. Sharing is safe: the suggestion passes mutate only slot
+-- `free` counts, which computeRoster never reads (it uses byId / numbered /
+-- labelFor). Do NOT reuse one index across two computeSuggestions calls.
 --
 -- margins = { replace = n, reassign = n } gate replace/reassign/recruit (skill-
 -- gap thresholds); they fall back to the skills defaults when omitted.
@@ -29,8 +34,8 @@ local scoreFor = skills.scoreFor
 
 local M = {}
 
-function M.computeSuggestions(citizens, buildings, visitors, margins)
-  local ix = index.prepare(citizens, buildings)
+function M.computeSuggestions(citizens, buildings, visitors, margins, ix)
+  ix = ix or index.prepare(citizens, buildings)
   local acc = { used = {}, out = {} }
 
   assign.run(ix, acc, margins)
@@ -52,8 +57,8 @@ function M.computeSuggestions(citizens, buildings, visitors, margins)
   return acc.out
 end
 
-function M.computeRoster(citizens, buildings, sugs)
-  local ix = index.prepare(citizens, buildings)
+function M.computeRoster(citizens, buildings, sugs, ix)
+  ix = ix or index.prepare(citizens, buildings)
   local byId, map = ix.byId, ix.numbered
 
   local assignAt, replaceAt, reassignAt = {}, {}, {}

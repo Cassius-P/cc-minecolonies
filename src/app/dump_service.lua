@@ -7,19 +7,14 @@
 ----------------------------------------------------------------------------
 
 local paste = require("common.ports.paste")
+local util  = require("common.util")
 
 local M = {}
 
-local function g(fn, d) local ok, v = pcall(fn); if ok and v ~= nil then return v else return d end end
-
+local g = util.safeGet
 -- Deep-clone to break shared table references (serializeJSON errors on
 -- "repeated entries" when the same table is referenced more than once).
-local function clone(t)
-  if type(t) ~= "table" then return t end
-  local c = {}
-  for k, v in pairs(t) do c[k] = clone(v) end
-  return c
-end
+local clone = util.deepCopy
 
 function M.run(colony, sel)
   sel = sel or {}

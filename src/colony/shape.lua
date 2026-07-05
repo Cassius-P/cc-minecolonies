@@ -20,6 +20,7 @@ local util     = require("common.util")
 local skills   = require("colony.skills")
 local advisor  = require("colony.advisor")
 local requests = require("colony.requests")
+local index    = require("colony.roster_index")
 
 local M = {}
 
@@ -36,6 +37,10 @@ function M.buildData(snapshot, config, caps, log)
     if skills.isUnemployed(c) then idle = idle + 1 else employed = employed + 1 end
   end
 
+  -- One shared roster index per scan, threaded through both advisor passes
+  -- (safe: suggestions mutate only slot free counts, which the roster ignores).
+  local ix = index.prepare(citizens, buildings)
+
   local d = {
     name = stats.name or "?", id = stats.id or "?",
     happiness = stats.happiness or 0,
@@ -48,9 +53,9 @@ function M.buildData(snapshot, config, caps, log)
     suggestions = advisor.computeSuggestions(citizens, buildings, visitors, {
       replace  = config.suggestions and config.suggestions.replaceMargin or 1,
       reassign = config.suggestions and config.suggestions.reassignMargin or 1,
-    }),
+    }, ix),
   }
-  d.roster = advisor.computeRoster(citizens, buildings, d.suggestions)
+  d.roster = advisor.computeRoster(citizens, buildings, d.suggestions, ix)
 
   -- Unique job types present in the colony (for the Job Skills section).
   local jobset = {}
