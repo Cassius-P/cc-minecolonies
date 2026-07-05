@@ -15,6 +15,7 @@
 
 local draw          = require("ui.draw")
 local theme         = require("ui.theme")
+local engine        = require("ui.layout.engine")
 local modalCommon   = require("ui.modals.common")
 local applyModal    = require("ui.modals.apply")
 local sectionsModal = require("ui.modals.sections")
@@ -29,99 +30,23 @@ local SECTIONS = {
   legend    = require("ui.sections.legend"),
   jobskills = require("ui.sections.jobskills"),
 }
-local SECTION_ORDER = { "status", "workforce", "workers", "orders", "requests", "legend", "jobskills" }
--- Sections hidden unless explicitly enabled (enabled[id] == true).
-local DEFAULT_HIDDEN = { jobskills = true }
-
-local function isShown(screen, id)
-  if DEFAULT_HIDDEN[id] then return screen.enabled[id] == true end
-  return screen.enabled[id] ~= false
-end
+-- Section order + geometry live in the pure engine; SECTIONS here maps each id
+-- to its draw module (the Basalt/draw side).
+local SECTION_ORDER = engine.SECTION_ORDER
 
 local M = {}
 M.SECTIONS = SECTIONS
 M.SECTION_ORDER = SECTION_ORDER
+M.normalizeColumns = engine.normalizeColumns
 
 ----------------------------------------------------------------------------
--- Geometry from the two columns
+-- Bind the pure geometry (engine.computeRects) to the Basalt section frames.
 ----------------------------------------------------------------------------
-
--- Ensure screen.columns is two clean lists holding every section exactly once.
--- Tolerates a missing/old config (e.g. preserved config.lua from a prior
--- version that used the flexbox layout instead of columns).
-function M.normalizeColumns(screen)
-  local cols = type(screen.columns) == "table" and screen.columns or {}
-  cols[1] = type(cols[1]) == "table" and cols[1] or {}
-  cols[2] = type(cols[2]) == "table" and cols[2] or {}
-  local seen = {}
-  for ci = 1, 2 do
-    local clean = {}
-    for _, id in ipairs(cols[ci]) do
-      if SECTIONS[id] and not seen[id] then seen[id] = true; clean[#clean + 1] = id end
-    end
-    cols[ci] = clean
-  end
-  for _, id in ipairs(SECTION_ORDER) do
-    if not seen[id] then table.insert(cols[1], id); seen[id] = true end
-  end
-  screen.columns = cols
-end
-
--- Enabled sections in a column, in order.
-local function enabledIn(screen, ci)
-  local out = {}
-  for _, id in ipairs(screen.columns[ci] or {}) do
-    if isShown(screen, id) then out[#out + 1] = id end
-  end
-  return out
-end
-
-local COLGAP = 1        -- blank column between the two columns
-local DEFAULT_WEIGHT = 6 -- baseline height share, so a section can shrink below default
-
-local function weightOf(screen, id)
-  local w = screen.weights and screen.weights[id]
-  return (type(w) == "number" and w > 0) and w or DEFAULT_WEIGHT
-end
-
--- rects[id] = {x,y,w,h} for every visible section. Column width is shared by
--- the active columns (minus a gap); row height within a column is shared by
--- each section's weight (so resizing one grows/shrinks its siblings).
-local function computeRects(screen)
-  local active = {}
-  for ci = 1, 2 do
-    local ids = enabledIn(screen, ci)
-    if #ids > 0 then active[#active + 1] = ids end
-  end
-  local rects = {}
-  local nCols = #active
-  if nCols == 0 then return rects end
-  local availW = screen.W - COLGAP * (nCols - 1)
-  local availH = screen.H - 1                         -- last row is the footer
-  local baseW = math.floor(availW / nCols)
-  local xcursor = 1
-  for i, ids in ipairs(active) do
-    local w = (i == nCols) and (screen.W - xcursor + 1) or baseW
-    local x = xcursor
-    local sum = 0
-    for _, id in ipairs(ids) do sum = sum + weightOf(screen, id) end
-    local ycursor, used = 1, 0
-    for j, id in ipairs(ids) do
-      local wt = weightOf(screen, id)
-      local h = (j == #ids) and (availH - used) or math.max(1, math.floor(availH * wt / sum))
-      rects[id] = { x = x, y = ycursor, w = w, h = h }
-      ycursor = ycursor + h
-      used = used + h
-    end
-    xcursor = xcursor + w + COLGAP
-  end
-  return rects
-end
 
 -- Position/size/show the section frames from the current columns.
 function M.applyRects(screen)
-  M.normalizeColumns(screen)
-  local rects = computeRects(screen)
+  engine.normalizeColumns(screen)
+  local rects = engine.computeRects(screen)
   for _, id in ipairs(SECTION_ORDER) do
     local sf, sd, r = screen.secFrames[id], screen.secDisp[id], rects[id]
     if sf then
@@ -234,7 +159,7 @@ end
 
 local function resizeHeight(screen, id, delta)
   screen.weights = screen.weights or {}
-  screen.weights[id] = math.max(1, weightOf(screen, id) + delta)
+  screen.weights[id] = math.max(1, engine.weightOf(screen, id) + delta)
   afterEdit(screen)
 end
 
@@ -294,7 +219,7 @@ end
 -- Deps handed to the sections modal (passed in to avoid a require cycle back
 -- into layout, which owns section registration + geometry).
 local modalDeps = { SECTION_ORDER = SECTION_ORDER, SECTIONS = SECTIONS,
-  isShown = isShown, applyRects = M.applyRects }
+  isShown = engine.isShown, applyRects = M.applyRects }
 
 -- Track a moving citizen in the open apply modal (called by the app poll loop).
 M.refreshModalLocation = applyModal.refreshLocation
