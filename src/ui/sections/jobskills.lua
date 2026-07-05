@@ -26,7 +26,7 @@ local function allJobs()
   return ALL
 end
 
-local function trunc(s, n) return #s > n and s:sub(1, n) or s end
+local trunc = require("ui.format").trunc
 
 function M.draw(x, y, w, h, screen, d)
   local jobs = allJobs()

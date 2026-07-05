@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.62",
+  version = "3.63",
 
   files = {
     -- entry + config + vendored dependency
@@ -53,6 +53,7 @@ return {
     -- ui
     { src = "src/ui/theme.lua",    dst = "/ui/theme.lua" },
     { src = "src/ui/tokens.lua",   dst = "/ui/tokens.lua" },
+    { src = "src/ui/format.lua",   dst = "/ui/format.lua" },
     { src = "src/ui/draw.lua",     dst = "/ui/draw.lua" },
     { src = "src/ui/layout/engine.lua", dst = "/ui/layout/engine.lua" },
     { src = "src/ui/layout.lua",   dst = "/ui/layout.lua" },

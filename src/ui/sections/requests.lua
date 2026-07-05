@@ -16,7 +16,7 @@ local MAT_COLOR = colors.purple   -- fixed colour for Domum material lines (not 
 local M = {}
 M.title = "Open Requests"
 
-local function trunc(s, n) return #s > n and s:sub(1, math.max(0, n)) or s end
+local trunc = require("ui.format").trunc
 
 function M.draw(x, y, w, h, screen, d)
   local list = d.requests

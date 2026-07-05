@@ -26,7 +26,7 @@ local function verb(t)
   else return "Other", C.accent2 end
 end
 
-local function trunc(s, n) return #s > n and s:sub(1, math.max(0, n)) or s end
+local trunc = require("ui.format").trunc
 -- Note: the colony_integrator exposes NO build-progress field (work orders and
 -- buildings only give claimed/built booleans), so a % cannot be shown. The
 -- claim dot (green claimed / orange waiting) is the available progress signal.

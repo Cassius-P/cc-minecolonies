@@ -17,7 +17,7 @@ local cap = util.capitalize
 local M = {}
 M.title = "Workers"
 
-local function trunc(s, n) return #s > n and s:sub(1, n) or s end
+local trunc = require("ui.format").trunc
 
 local function drawRosterRow(rx, ry, colW, r)
   if r.kind == "gap" then
