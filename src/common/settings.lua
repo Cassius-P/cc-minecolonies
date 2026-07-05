@@ -46,7 +46,21 @@ function M.load(config, screens, isTheme)
 end
 
 function M.save(config, screens)
-  local out = { theme = config.theme, suggestions = config.suggestions, screens = {} }
+  -- MERGE over the existing file: a monitor that is not currently attached (e.g.
+  -- slow to re-attach over the wired modem after an update/reboot) is absent from
+  -- `screens`, and a plain rewrite would drop its saved layout for good. Read the
+  -- persisted screens first and only overwrite the entries for present monitors.
+  local out = { screens = {} }
+  if fs.exists(FILE) then
+    local f = fs.open(FILE, "r")
+    if f then
+      local raw = f.readAll(); f.close()
+      local ok, t = pcall(textutils.unserialize, raw)
+      if ok and type(t) == "table" and type(t.screens) == "table" then out.screens = t.screens end
+    end
+  end
+  out.theme = config.theme
+  out.suggestions = config.suggestions
   for _, s in ipairs(screens) do
     out.screens[s.name] = { enabled = s.enabled, cfgIdx = s.cfgIdx,
       columns = s.columns, weights = s.weights }

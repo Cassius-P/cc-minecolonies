@@ -40,7 +40,8 @@ local function buildApplyModal(screen, s)
     + (tgt and 1 or 0)                                        -- Replacing
   local nSkill = tgt and 4 or 2
   local mw = math.min(W - 2, 42)
-  local mh = math.min(H - 2, 3 + nInfo + 1 + nSkill + 1)
+  -- +1 for the blank row between the primary and secondary skill groups.
+  local mh = math.min(H - 2, 3 + nInfo + 1 + nSkill + 1 + 1)
   local mx = math.floor((W - mw) / 2) + 1
   local my = math.floor((H - mh) / 2) + 1
   local card = nmf:addFrame({ x = mx, y = my, width = mw, height = mh, background = C.card })
@@ -91,6 +92,7 @@ local function buildApplyModal(screen, s)
   end
   bar(tostring(s.pri), iy, cand.pri or 0, C.good); iy = iy + 1
   if tgt then bar("", iy, tgt.pri or 0, C.bad); iy = iy + 1 end
+  iy = iy + 1  -- small spacing between the primary + secondary skill stats
   bar(tostring(s.sec), iy, cand.sec or 0, C.good); iy = iy + 1
   if tgt then bar("", iy, tgt.sec or 0, C.bad); iy = iy + 1 end
 
