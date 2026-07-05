@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.60",
+  version = "3.61",
 
   files = {
     -- entry + config + vendored dependency
@@ -18,7 +18,8 @@ return {
     { src = "src/config.lua",  dst = "/config.lua" },
     { src = "vendor/basalt.lua", dst = "/basalt.lua" },
     -- application layer
-    { src = "src/app/store.lua", dst = "/app/store.lua" },
+    { src = "src/app/store.lua",        dst = "/app/store.lua" },
+    { src = "src/app/dump_service.lua", dst = "/app/dump_service.lua" },
     -- self-updating installer/updater
     { src = "install.lua",   dst = "/install.lua" },
     { src = "update.lua",    dst = "/update.lua" },
@@ -32,6 +33,7 @@ return {
     { src = "src/common/updater.lua",     dst = "/common/updater.lua" },
     { src = "src/common/ports/colony.lua", dst = "/common/ports/colony.lua" },
     { src = "src/common/ports/bridge.lua", dst = "/common/ports/bridge.lua" },
+    { src = "src/common/ports/paste.lua",  dst = "/common/ports/paste.lua" },
     -- colony
     { src = "src/colony/skills.lua",       dst = "/colony/skills.lua" },
     { src = "src/colony/roster_index.lua", dst = "/colony/roster_index.lua" },

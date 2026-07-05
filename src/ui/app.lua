@@ -20,6 +20,7 @@ local terminal = require("ui.terminal")
 local loaderUI = require("ui.loader")
 local api      = require("colony.api")
 local store    = require("app.store")
+local dumpService = require("app.dump_service")
 
 local M = {}
 
@@ -132,43 +133,13 @@ function M.start(cfgModule)
     state.markScan()      -- apply on the next tick, NOT per keystroke (was laggy)
   end
 
-  -- Dump selected colony data to paste.rs (JSON) and show the link.
-  local function doDump(sel)
-    local function g(fn, d) local ok, v = pcall(fn); if ok and v ~= nil then return v else return d end end
-    local payload = { at = os.epoch and os.epoch("utc") or 0 }
-    if sel.colony then
-      payload.colony = { name = g(colony.getColonyName), id = g(colony.getColonyID),
-        happiness = g(colony.getHappiness), pop = g(colony.amountOfCitizens),
-        maxPop = g(colony.maxOfCitizens), attack = g(colony.isUnderAttack),
-        raid = g(colony.isUnderRaid), sites = g(colony.amountOfConstructionSites),
-        graves = g(colony.amountOfGraves) }
-    end
-    if sel.citizens   then payload.citizens   = g(function() return colony.getCitizens() end, {}) end
-    if sel.buildings  then payload.buildings  = g(function() return colony.getBuildings() end, {}) end
-    if sel.workOrders then payload.workOrders = g(function() return colony.getWorkOrders() end, {}) end
-    if sel.requests   then payload.requests   = g(function() return colony.getRequests() end, {}) end
-    if sel.visitors   then payload.visitors   = g(function() return colony.getVisitors() end, {}) end
-    -- Deep-clone to break shared table references (serializeJSON errors on
-    -- "repeated entries" when the same table is referenced more than once).
-    local function clone(t)
-      if type(t) ~= "table" then return t end
-      local c = {}
-      for k, v in pairs(t) do c[k] = clone(v) end
-      return c
-    end
-    local okj, body = pcall(textutils.serializeJSON, clone(payload))
-    if not okj then body = textutils.serialize(payload) end
-    local res = http.post("https://paste.rs", body)
-    if not res then error("paste.rs post failed (http)", 0) end
-    local link = res.readAll(); res.close()
-    return (link:gsub("%s+$", ""))
-  end
-
+  -- Dump selected colony data to paste.rs (JSON) and show the link. The payload
+  -- build + upload lives in app/dump_service; here we only manage UI state.
   local function onDump(sel)
     if state.dumping then return end
     state.beginDump(); redrawAll()
     basalt.schedule(function()
-      local ok, link = pcall(doDump, sel or {})
+      local ok, link = pcall(dumpService.run, colony, sel or {})
       if ok and link and link ~= "" then
         state.finishDump(link, nil)
         -- CC has no OS clipboard (sandboxed); save the link to a file instead.
