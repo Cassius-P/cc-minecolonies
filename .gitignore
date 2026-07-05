@@ -1,3 +1,6 @@
 # Local-only reference copies of the previous monolithic scripts.
 # Kept on disk, excluded from the published repo.
 legacy/
+
+# Local Claude Code guidance, not published.
+CLAUDE.md
