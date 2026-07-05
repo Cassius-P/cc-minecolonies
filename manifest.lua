@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.54",
+  version = "3.55",
 
   files = {
     -- entry + config + vendored dependency
@@ -37,6 +37,7 @@ return {
     { src = "src/colony/suggest/recruit.lua",  dst = "/colony/suggest/recruit.lua" },
     { src = "src/colony/advisor.lua",  dst = "/colony/advisor.lua" },
     { src = "src/colony/requests.lua", dst = "/colony/requests.lua" },
+    { src = "src/colony/shape.lua",    dst = "/colony/shape.lua" },
     { src = "src/colony/api.lua",      dst = "/colony/api.lua" },
     -- storage
     { src = "src/storage/fulfill.lua", dst = "/storage/fulfill.lua" },

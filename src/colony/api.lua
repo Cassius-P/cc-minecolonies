@@ -1,14 +1,17 @@
 ----------------------------------------------------------------------------
--- colony/api.lua -- one scan of the colony_integrator into a normalized `data`
--- table, running suggestions/roster + optional CCxM auto-fulfill.
+-- colony/api.lua -- one scan of the colony_integrator: the I/O boundary.
+--
+-- Fetches a raw snapshot (every integrator call wrapped in pcall via the g()
+-- helper, since the peripheral can throw or return nil), discovers the ME/RS
+-- bridge + warehouse, hands the snapshot to the PURE shaper (colony/shape), then
+-- runs the effectful CCxM auto-fulfill when the shaper says it may. The pure
+-- data-shaping lives in colony/shape.lua so it can be unit-tested without a
+-- live colony.
 ----------------------------------------------------------------------------
 
-local util     = require("common.util")
-local skills   = require("colony.skills")
-local advisor  = require("colony.advisor")
-local requests = require("colony.requests")
-local fulfill  = require("storage.fulfill")
-local perif    = require("common.peripherals")
+local fulfill = require("storage.fulfill")
+local perif   = require("common.peripherals")
+local shape   = require("colony.shape")
 
 local M = {}
 
@@ -17,95 +20,38 @@ function M.gather(ctx)
   local colony, config, log = ctx.colony, ctx.config, ctx.log
   local function g(fn, d) local ok, v = pcall(fn); if ok and v ~= nil then return v else return d end end
 
-  local citizens  = g(function() return colony.getCitizens() end, {})
-  local buildings = g(function() return colony.getBuildings() end, {})
-  local orders    = g(function() return colony.getWorkOrders() end, {})
-  local visitors  = g(function() return colony.getVisitors() end, {})
+  local citizens = g(function() return colony.getCitizens() end, {})
 
-  local employed, idle = 0, 0
-  for _, c in ipairs(citizens) do
-    if skills.isUnemployed(c) then idle = idle + 1 else employed = employed + 1 end
-  end
-
-  local d = {
-    name = g(colony.getColonyName, "?"), id = g(colony.getColonyID, "?"),
-    happiness = g(colony.getHappiness, 0),
-    pop = g(colony.amountOfCitizens, #citizens), maxPop = g(colony.maxOfCitizens, 0),
-    attack = g(colony.isUnderAttack, false), raid = g(colony.isUnderRaid, false),
-    sites = g(colony.amountOfConstructionSites, 0), graves = g(colony.amountOfGraves, 0),
-    total = #citizens, employed = employed, idle = idle, buildings = #buildings,
-    visitors = type(visitors) == "table" and #visitors or 0,
-    orders = type(orders) == "table" and orders or {},
-    suggestions = advisor.computeSuggestions(citizens, buildings, visitors, {
-      replace  = config.suggestions and config.suggestions.replaceMargin or 1,
-      reassign = config.suggestions and config.suggestions.reassignMargin or 1,
-    }),
+  local snapshot = {
+    citizens  = citizens,
+    buildings = g(function() return colony.getBuildings() end, {}),
+    orders    = g(function() return colony.getWorkOrders() end, {}),
+    visitors  = g(function() return colony.getVisitors() end, {}),
+    requests  = g(function() return colony.getRequests() end, {}),
+    stats = {
+      name = g(colony.getColonyName, "?"), id = g(colony.getColonyID, "?"),
+      happiness = g(colony.getHappiness, 0),
+      pop = g(colony.amountOfCitizens, #citizens), maxPop = g(colony.maxOfCitizens, 0),
+      attack = g(colony.isUnderAttack, false), raid = g(colony.isUnderRaid, false),
+      sites = g(colony.amountOfConstructionSites, 0), graves = g(colony.amountOfGraves, 0),
+    },
   }
-  d.roster = advisor.computeRoster(citizens, buildings, d.suggestions)
 
-  -- Unique job types present in the colony (for the Job Skills section).
-  local jobset = {}
-  for _, b in ipairs(buildings) do
-    local jk = b.type or util.jobKey(b.name)
-    if jk and skills.JOB_SKILLS[jk] and b.built ~= false then jobset[jk] = true end
-  end
-  local jobTypes = {}
-  for jk in pairs(jobset) do jobTypes[#jobTypes + 1] = jk end
-  table.sort(jobTypes)
-  d.jobTypes = jobTypes
-
-  -- Resolve each work order's builder to a NAME. The integrator gives `builder`
-  -- as the builder-hut position (or, on some versions, a table with a name);
-  -- map the position to the hut's assigned citizen. Sets o.builderName.
-  local bByLoc = {}
-  for _, b in ipairs(buildings) do
-    if type(b.location) == "table" then bByLoc[util.locStr(b.location)] = b end
-  end
-  for _, o in ipairs(d.orders) do
-    local bl = o.builder
-    if type(bl) == "table" then
-      if type(bl.name) == "string" and bl.name ~= "" then
-        o.builderName = bl.name
-      else
-        local loc = bl.location or bl
-        local hut = type(loc) == "table" and bByLoc[util.locStr(loc)]
-        if hut and type(hut.citizens) == "table" and hut.citizens[1] then
-          o.builderName = hut.citizens[1].name
-        end
-      end
-    end
-  end
-
-  -- Requests + optional auto-fulfill (CCxM).
   local bridge  = perif.findBridge(config)
   local storage = perif.findStorage(config)
-  d.bridgePresent  = bridge ~= nil
-  d.storagePresent = storage ~= nil
+  local caps = { bridge = bridge ~= nil, storage = storage ~= nil }
 
-  local eq, bd, ot = {}, {}, {}
-  pcall(function()
-    eq, bd, ot = requests.categorize(g(function() return colony.getRequests() end, {}), log)
-  end)
+  local d = shape.buildData(snapshot, config, caps, log)
 
-  local af = config.autofulfill
-  local mode, canAuto = "MANUAL", false
-  if af.enabled and bridge and storage then
-    canAuto = true
-    if af.pauseUnderAttack and (d.attack or d.raid) then canAuto, mode = false, "PAUSED raid" end
-    if canAuto and af.minHappiness > 0 and d.happiness < af.minHappiness then canAuto, mode = false, "PAUSED low happy" end
-    if canAuto then
-      local fctx = { bridge = bridge, storage = storage, config = config, log = log }
-      fulfill.handle(eq, fctx); fulfill.handle(bd, fctx); fulfill.handle(ot, fctx)
-      mode = "AUTO"
-    end
-  elseif not (bridge and storage) then
-    mode = "no bridge"
+  -- CCxM auto-fulfill: effectful. Mutates each request item's displayColor in
+  -- place (shared with d.requests) via the ME/RS bridge. Order: eq, bd, ot.
+  if d.autofulfill.canAuto then
+    local fctx = { bridge = bridge, storage = storage, config = config, log = log }
+    fulfill.handle(d.reqGroups.eq, fctx)
+    fulfill.handle(d.reqGroups.bd, fctx)
+    fulfill.handle(d.reqGroups.ot, fctx)
   end
 
-  local all = {}
-  for _, l in ipairs({ bd, eq, ot }) do for _, it in ipairs(l) do all[#all + 1] = it end end
-  d.requests = all
-  d.reqMode = mode
   return d
 end
 
