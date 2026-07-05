@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.58",
+  version = "3.59",
 
   files = {
     -- entry + config + vendored dependency
@@ -54,6 +54,10 @@ return {
     { src = "src/ui/terminal.lua", dst = "/ui/terminal.lua" },
     { src = "src/ui/app.lua",      dst = "/ui/app.lua" },
     { src = "src/ui/loader.lua",   dst = "/ui/loader.lua" },
+    -- native modals (extracted from layout)
+    { src = "src/ui/modals/common.lua",   dst = "/ui/modals/common.lua" },
+    { src = "src/ui/modals/apply.lua",    dst = "/ui/modals/apply.lua" },
+    { src = "src/ui/modals/sections.lua", dst = "/ui/modals/sections.lua" },
     -- admin view (one module per tab)
     { src = "src/ui/admin/diff.lua",        dst = "/ui/admin/diff.lua" },
     { src = "src/ui/admin/status.lua",      dst = "/ui/admin/status.lua" },
