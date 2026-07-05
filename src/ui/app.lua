@@ -21,6 +21,8 @@ local loaderUI = require("ui.loader")
 local api      = require("colony.api")
 local store    = require("app.store")
 local dumpService = require("app.dump_service")
+local keys     = require("app.keys")
+local teardown = require("app.teardown")
 
 local M = {}
 
@@ -219,34 +221,12 @@ function M.start(cfgModule)
   ----------------------------------------------------------------------------
   -- Global keys + periodic refresh
   ----------------------------------------------------------------------------
-  -- During the boot splash, ANY key cancels auto-launch and drops to the shell.
-  basalt.onEvent("key", function()
-    if state.booting then state.cancelBooting(); basalt.stop() end
-  end)
-
-  basalt.onEvent("char", function(ch)
-    if state.booting then return end   -- splash window: keys handled by the "key" cancel above
-    -- Ignore global shortcuts while typing in an input field.
-    local f = basalt.getFocus and basalt.getFocus()
-    if f and f.get and (f.get("type") == "Input" or f.get("type") == "TextBox") then return end
-    if ch == "q" then
-      basalt.stop()
-    elseif ch == "r" then
-      rescan(); redrawAll()
-    elseif ch == "t" then
-      hooks.cycleTheme(); redrawAll()
-    elseif ch == "u" then
-      doCheck()
-    elseif ch == "i" then
-      doInstall()
-    elseif ch == "d" then
-      if termUI and termUI.triggerDump then termUI.triggerDump() end
-    elseif ch == "a" then
-      if termUI and termUI.toggleAllDump then termUI.toggleAllDump() end
-    elseif type(ch) == "string" and ch:match("%d") then
-      reassignScreen(tonumber(ch)); redrawAll()
-    end
-  end)
+  -- Global keyboard dispatch (boot-cancel + q/r/t/u/i/d/a/1-9).
+  keys.register(basalt, {
+    state = state, rescan = rescan, redraw = redrawAll,
+    cycleTheme = hooks.cycleTheme, doCheck = doCheck, doInstall = doInstall,
+    termUI = termUI, reassign = reassignScreen,
+  })
 
   -- Animate the loading overlay until the first scan completes.
   basalt.schedule(function()
@@ -309,25 +289,7 @@ function M.start(cfgModule)
 
   basalt.run()
 
-  -- Teardown: restore palettes + clear.
-  theme.restore(screens)
-  for _, s in ipairs(screens) do
-    s.mon.setBackgroundColor(colors.black); s.mon.clear(); s.mon.setCursorPos(1, 1)
-  end
-  term.setBackgroundColor(colors.black); term.setTextColor(colors.white)
-  term.clear(); term.setCursorPos(1, 1)
-  if state.cancelBoot then
-    print("Auto-launch cancelled. Run 'main' to start the dashboard.")
-    return
-  end
-  if state.pendingInstall then
-    -- App Basalt is fully stopped now; the updater runs in its own single
-    -- Basalt session (no nesting -> no flicker), then reboots.
-    shell.run("/update.lua", "force")
-    os.reboot()
-    return
-  end
-  print("colony_dashboard stopped.")
+  teardown.run(state, screens)
 end
 
 return M

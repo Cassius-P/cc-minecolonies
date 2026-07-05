@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.61",
+  version = "3.62",
 
   files = {
     -- entry + config + vendored dependency
@@ -20,6 +20,8 @@ return {
     -- application layer
     { src = "src/app/store.lua",        dst = "/app/store.lua" },
     { src = "src/app/dump_service.lua", dst = "/app/dump_service.lua" },
+    { src = "src/app/keys.lua",         dst = "/app/keys.lua" },
+    { src = "src/app/teardown.lua",     dst = "/app/teardown.lua" },
     -- self-updating installer/updater
     { src = "install.lua",   dst = "/install.lua" },
     { src = "update.lua",    dst = "/update.lua" },
