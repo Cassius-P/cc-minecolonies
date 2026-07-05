@@ -1,6 +1,8 @@
--- Characterization tests for storage/fulfill.lua equipNames (pure tier ranges).
-local t       = require("helper")
-local fulfill = require("storage.fulfill")
+-- Characterization tests for storage/fulfill.lua equipNames (pure tier ranges)
+-- and the handle() executor driven through the bridge port over a fake bridge.
+local t          = require("helper")
+local fulfill    = require("storage.fulfill")
+local bridgePort = require("common.ports.bridge")
 local equipNames = fulfill.equipNames
 
 t.case("tool range clamped by equipmentLevel cap (Iron -> rank 4)")
@@ -45,4 +47,40 @@ do
     { equipmentLevel = "Iron" })
   t.eq(#out, 1)
   t.eq(out[1], "fallback")
+end
+
+t.case("handle applies the right status token per outcome (via bridge port)")
+do
+  local nolog = { safeCall = function(fn) return (pcall(fn)) end, write = function() end }
+  local stock = {
+    fp_stone = { amount = 10, isCraftable = true,  fingerprint = "fp_stone", export = 4 },
+    fp_iron  = { amount = 3,  isCraftable = true,  fingerprint = "fp_iron",  export = 3 },
+    fp_void  = { amount = 0,  isCraftable = false, fingerprint = "fp_void" },
+  }
+  local raw = {
+    getItem = function(f)
+      local s = stock[f.fingerprint or f.name]
+      if not s then return nil end
+      return { amount = s.amount, isCraftable = s.isCraftable, fingerprint = s.fingerprint }
+    end,
+    exportItemToPeripheral = function(f) local s = stock[f.fingerprint]; return s and s.export or 0 end,
+    isItemCrafting = function() return false end,
+    craftItem = function() return true end,
+  }
+  local ctx = {
+    bridge = bridgePort.new(raw, nolog), storage = "barrel", log = nolog,
+    config = { autofulfill = { enabled = true, craftMissing = true, equipment = true,
+      equipmentLevel = "Iron", skipItems = { "minecraft:skipme" } } },
+  }
+  local list = {
+    { item_name = "minecraft:skipme", count = 1 },
+    { item_name = "minecraft:stone",  count = 4, fingerprint = "fp_stone" },
+    { item_name = "minecraft:iron",   count = 10, fingerprint = "fp_iron" },
+    { item_name = "minecraft:void",   count = 1, fingerprint = "fp_void" },
+  }
+  fulfill.handle(list, ctx)
+  t.eq(list[1].displayColor, "skipped")
+  t.eq(list[2].displayColor, "filled",  "fully exported")
+  t.eq(list[3].displayColor, "crafting", "partial then craft queued")
+  t.eq(list[4].displayColor, "missing", "not in system / uncraftable")
 end

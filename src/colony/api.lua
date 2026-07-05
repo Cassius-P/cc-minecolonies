@@ -9,33 +9,20 @@
 -- live colony.
 ----------------------------------------------------------------------------
 
-local fulfill = require("storage.fulfill")
-local perif   = require("common.peripherals")
-local shape   = require("colony.shape")
+local fulfill    = require("storage.fulfill")
+local perif      = require("common.peripherals")
+local shape      = require("colony.shape")
+local colonyPort = require("common.ports.colony")
+local bridgePort = require("common.ports.bridge")
 
 local M = {}
 
 -- gather(ctx): ctx = { colony, config, log }
 function M.gather(ctx)
-  local colony, config, log = ctx.colony, ctx.config, ctx.log
-  local function g(fn, d) local ok, v = pcall(fn); if ok and v ~= nil then return v else return d end end
+  local config, log = ctx.config, ctx.log
 
-  local citizens = g(function() return colony.getCitizens() end, {})
-
-  local snapshot = {
-    citizens  = citizens,
-    buildings = g(function() return colony.getBuildings() end, {}),
-    orders    = g(function() return colony.getWorkOrders() end, {}),
-    visitors  = g(function() return colony.getVisitors() end, {}),
-    requests  = g(function() return colony.getRequests() end, {}),
-    stats = {
-      name = g(colony.getColonyName, "?"), id = g(colony.getColonyID, "?"),
-      happiness = g(colony.getHappiness, 0),
-      pop = g(colony.amountOfCitizens, #citizens), maxPop = g(colony.maxOfCitizens, 0),
-      attack = g(colony.isUnderAttack, false), raid = g(colony.isUnderRaid, false),
-      sites = g(colony.amountOfConstructionSites, 0), graves = g(colony.amountOfGraves, 0),
-    },
-  }
+  -- I/O: one pcall-guarded snapshot through the colony adapter.
+  local snapshot = colonyPort.new(ctx.colony).snapshot()
 
   local bridge  = perif.findBridge(config)
   local storage = perif.findStorage(config)
@@ -44,9 +31,9 @@ function M.gather(ctx)
   local d = shape.buildData(snapshot, config, caps, log)
 
   -- CCxM auto-fulfill: effectful. Mutates each request item's displayColor in
-  -- place (shared with d.requests) via the ME/RS bridge. Order: eq, bd, ot.
+  -- place (shared with d.requests) via the ME/RS bridge port. Order: eq, bd, ot.
   if d.autofulfill.canAuto then
-    local fctx = { bridge = bridge, storage = storage, config = config, log = log }
+    local fctx = { bridge = bridgePort.new(bridge, log), storage = storage, config = config, log = log }
     fulfill.handle(d.reqGroups.eq, fctx)
     fulfill.handle(d.reqGroups.bd, fctx)
     fulfill.handle(d.reqGroups.ot, fctx)

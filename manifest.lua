@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.56",
+  version = "3.57",
 
   files = {
     -- entry + config + vendored dependency
@@ -28,6 +28,8 @@ return {
     { src = "src/common/peripherals.lua", dst = "/common/peripherals.lua" },
     { src = "src/common/settings.lua",    dst = "/common/settings.lua" },
     { src = "src/common/updater.lua",     dst = "/common/updater.lua" },
+    { src = "src/common/ports/colony.lua", dst = "/common/ports/colony.lua" },
+    { src = "src/common/ports/bridge.lua", dst = "/common/ports/bridge.lua" },
     -- colony
     { src = "src/colony/skills.lua",       dst = "/colony/skills.lua" },
     { src = "src/colony/roster_index.lua", dst = "/colony/roster_index.lua" },
