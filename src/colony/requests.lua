@@ -86,7 +86,7 @@ function M.categorize(rawRequests, log)
         item_name = req.items[1].name, desc = req.desc or "",
         fingerprint = req.items[1].fingerprint,  -- AP item id: exact match for any item
         provided = 0, isCraftable = false, equipment = isEq,
-        displayColor = colors.white, level = "",
+        displayColor = "default", level = "",   -- semantic token; ui/tokens maps to a colour
       }
       if isEq then
         local bi = baseItem(base.desc) or baseItem(req.name) or req.name

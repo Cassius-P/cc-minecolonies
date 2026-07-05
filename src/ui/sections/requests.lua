@@ -6,8 +6,9 @@
 -- materials in a fixed colour. Title shows the auto-fulfill mode.
 ----------------------------------------------------------------------------
 
-local draw  = require("ui.draw")
-local theme = require("ui.theme")
+local draw   = require("ui.draw")
+local theme  = require("ui.theme")
+local tokens = require("ui.tokens")
 local C = theme.C
 
 local MAT_COLOR = colors.purple   -- fixed colour for Domum material lines (not used by the legend)
@@ -47,7 +48,7 @@ function M.draw(x, y, w, h, screen, d)
       local tgt = tostring(it.target or "")
       local left = qty .. " " .. (it.displayLabel or it.item_displayName or it.name)
       local room = cw - #tgt - 1
-      draw.put(cx, ry, trunc(left, math.max(0, room)), it.displayColor or C.text, C.card)
+      draw.put(cx, ry, trunc(left, math.max(0, room)), tokens.color(it.displayColor), C.card)
       if #tgt > 0 then draw.put(cx + cw - #tgt, ry, tgt, C.dim, C.card) end
     end
   end

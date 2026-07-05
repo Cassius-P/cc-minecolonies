@@ -112,7 +112,7 @@ function M.handle(list, ctx)
 
   for _, item in ipairs(list) do
     if skip[item.item_name] then
-      item.displayColor = colors.gray
+      item.displayColor = "skipped"
       goto continue
     end
 
@@ -133,16 +133,16 @@ function M.handle(list, ctx)
     if stocked then
       item.provided = doExport(bridge, storage, stocked, item.count)
       if item.provided >= item.count then
-        item.displayColor = colors.green   -- fully exported (Domum too; it's flagged by its purple materials line)
+        item.displayColor = "filled"   -- fully exported (Domum too; it's flagged by its purple materials line)
         goto continue
       else
-        item.displayColor = colors.yellow
+        item.displayColor = "partial"
       end
     end
 
     -- Pass 2: craft a craftable candidate (by fingerprint) for the shortfall.
     if not af.craftMissing then
-      if not stocked then item.displayColor = colors.red end
+      if not stocked then item.displayColor = "missing" end
       goto continue
     end
     if item.equipment and not af.equipment then goto continue end
@@ -151,16 +151,16 @@ function M.handle(list, ctx)
       local crafting = false
       log.safeCall(function() crafting = bridge.isItemCrafting(craftFilter) end)
       if crafting then
-        item.displayColor = colors.blue
+        item.displayColor = "crafting"
         goto continue
       end
       local ok = log.safeCall(function()
         return bridge.craftItem(withCount(craftFilter, item.count - (item.provided or 0)))
       end)
-      item.displayColor = ok and colors.blue or colors.yellow
+      item.displayColor = ok and "crafting" or "partial"
     elseif not stocked then
       log.write((item.displayLabel or item.item_displayName or item.item_name) .. " not in system or craftable.")
-      item.displayColor = colors.red
+      item.displayColor = "missing"
     end
 
     ::continue::

@@ -33,7 +33,7 @@ do
   t.eq(eq[1].displayLabel, "Sword (Wood -> Iron)")
   t.eq(eq[1].fingerprint, "fp1")
   t.eq(eq[1].provided, 0, "default provided")
-  t.eq(eq[1].displayColor, colors.white, "default color")
+  t.eq(eq[1].displayColor, "default", "default status token")
 
   t.eq(bd[1].item_name, "minecraft:oak_planks")
   t.eq(ot[1].item_name, "minecraft:torch")
