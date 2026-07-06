@@ -32,6 +32,14 @@ function M.build(tab, ctx)
   tab:addLabel({ x = 2, y = 9, width = tw - 2, foreground = colors.gray })
     :setText("0 = suggest any gain   higher = only big upgrades")
 
+  tab:addLabel({ x = 2, y = 11, width = 16 }):setText("Pocket channel"):setForeground(colors.white)
+  local inChannel = tab:addInput({ x = 18, y = 11, width = 7, height = 1, placeholder = "10000",
+    background = colors.gray, foreground = colors.white })
+  tab:addLabel({ x = 2, y = 12, width = tw - 2, foreground = colors.gray })
+    :setText("Modem channel shared with the pocket (10000-65535).")
+  inChannel:setText(tostring(ctx.config.channel or 10000))
+  inChannel:onChange("text", function(_, v) if ctx.onChannel then ctx.onChannel(v) end end)
+
   local sg = ctx.config.suggestions or {}
   inReplace:setText(tostring(sg.replaceMargin or 1))
   inReassign:setText(tostring(sg.reassignMargin or 1))

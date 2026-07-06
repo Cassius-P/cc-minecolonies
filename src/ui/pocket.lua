@@ -1,8 +1,8 @@
 ----------------------------------------------------------------------------
--- ui/pocket.lua -- the pocket-computer "remote monitor". Renders colony data
--- received over rednet from the host, reusing the monitor layout/section
--- stack. Its layout + theme are local to the pocket (own settings file), so
--- the pocket theme is independent of the host monitors.
+-- ui/pocket.lua -- the pocket-computer "remote monitor". Receives colony data
+-- over a shared modem channel and renders it with the monitor layout/section
+-- stack. Its layout + theme + channel are local to the pocket (own settings
+-- file), independent of the host monitors.
 ----------------------------------------------------------------------------
 
 local basalt   = require("basalt")
@@ -18,7 +18,8 @@ local M = {}
 
 function M.start(cfgModule)
   local config = cfgModule.config
-  if not remote.openModem() then
+  local modem = remote.openModem()
+  if not modem then
     term.clear(); term.setCursorPos(1, 1)
     term.setTextColor(colors.red)
     print("No wireless/ender modem. Attach one and reboot.")
@@ -53,7 +54,7 @@ function M.start(cfgModule)
     settings.save(config, screens)
   end
 
-  -- Per-pocket persisted layout + theme (local file). Reuses the monitor store.
+  -- Per-pocket persisted layout + theme + channel (local file).
   settings.load(config, screens, theme.isTheme)
   state.setTheme(config.theme)
 
@@ -67,25 +68,51 @@ function M.start(cfgModule)
   local loader = loaderUI.build({ frame })
   loader.show("Waiting for host")
 
-  -- Keys: q quit, r manual refresh (re-HELLO). Everything else is footer buttons.
-  local rc
+  local rc   -- forward declaration; used by the prompt's OK handler
+
+  -- Channel prompt overlay: prefilled input, validates a 5-digit channel.
+  local prompt = frame:addFrame({ x = 1, y = 1, width = W, height = H, background = colors.black })
+  prompt.set("z", 500); prompt.set("visible", false)
+  local py = math.max(1, math.floor(H / 2) - 2)
+  prompt:addLabel({ x = 2, y = py, width = W - 2, foreground = colors.white })
+    :setText("Host link channel (10000-65535):")
+  local input = prompt:addInput({ x = 2, y = py + 1, width = 7, height = 1,
+    background = colors.gray, foreground = colors.white })
+  local warn = prompt:addLabel({ x = 2, y = py + 3, width = W - 2, foreground = colors.red })
+  local function showPrompt()
+    input:setText(tostring(remote.channelOr(config.channel)))
+    warn:setText(""); prompt.set("visible", true)
+  end
+  prompt:addButton({ x = 2, y = py + 2, width = 4, height = 1 })
+    :setText(" OK "):setBackground(colors.green):setForeground(colors.black)
+    :onClick(function()
+      local n = tonumber(input.get("text"))
+      if not remote.validChannel(n) then warn:setText("Need 10000-65535"); return end
+      config.channel = n
+      settings.save(config, screens)
+      if rc then rc.setChannel(n) end
+      prompt.set("visible", false)
+    end)
+
+  -- Keys: q quit, r manual refresh, h edit channel. Others are footer buttons.
   basalt.onEvent("char", function(ch)
     local f = basalt.getFocus and basalt.getFocus()
     if f and f.get and (f.get("type") == "Input" or f.get("type") == "TextBox") then return end
     if ch == "q" then basalt.stop()
-    elseif ch == "r" and rc then rc.hello() end
+    elseif ch == "r" and rc then rc.hello()
+    elseif ch == "h" then showPrompt() end
   end)
 
-  rc = client.new(config.pocket or {}, state,
+  rc = client.new(modem, remote.channelOr(config.channel), (config.pocket or {}).staleSeconds,
     function(snap)                              -- onData
       state.setData(snap.data, "")
-      loader.hide()
-      redrawAll()
+      loader.hide(); redrawAll()
     end,
     function(stale, ever)                       -- onStale
       if stale then loader.show(ever and "Host offline" or "Waiting for host") else loader.hide() end
     end)
-  rc.serve(basalt)
+  rc.open(); rc.serve(basalt)
+  if not remote.validChannel(config.channel) then showPrompt() end
 
   -- Animate the loader dots while disconnected.
   basalt.schedule(function() while true do loader.tick(); sleep(0.3) end end)

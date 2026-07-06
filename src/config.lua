@@ -12,12 +12,11 @@ M.config = {
   theme          = "deepslate",   -- deepslate | smooth_stone | sandstone | basalt (GLOBAL)
   refreshSeconds = 5,
 
-  -- Remote pocket monitor. On a POCKET computer, set hostId to the dashboard
-  -- computer's ID (shown on its admin Status tab). Ignored on the host.
-  pocket = {
-    hostId       = nil,   -- e.g. 7
-    staleSeconds = 15,    -- show "Host offline" after this long with no snapshot
-  },
+  -- Remote pocket monitor pairing. host + pocket must share this modem channel
+  -- (5-digit, 10000-65535). Editable in the host admin Settings tab and via the
+  -- pocket's on-screen prompt; also change it here if you prefer.
+  channel = 10000,
+  pocket  = { staleSeconds = 15 },
 
   -- Source repo for the "update available" check on the computer screen.
   -- Keep in sync with REPO in install.lua / update.lua.

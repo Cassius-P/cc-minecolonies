@@ -55,11 +55,12 @@ function M.start(cfgModule)
   local loading, loader = true, nil   -- Basalt loading overlay (set up below)
 
   -- Remote pocket monitors: opt-in, only when a wireless/ender modem is present.
-  local remoteOn = remote.openModem()
-  local rhost = remoteOn and remoteHost.new(function()
+  local modem = remote.openModem()
+  local rhost = modem and remoteHost.new(modem, remote.channelOr(config.channel), function()
     if not state.data then return nil end
     return remote.snapshot(state.data, state.data.name, state.data.id)
   end) or nil
+  if rhost then rhost.open() end
 
   ----------------------------------------------------------------------------
   -- Build one Basalt frame + Display per monitor
@@ -147,6 +148,14 @@ function M.start(cfgModule)
     state.markScan()      -- apply on the next tick, NOT per keystroke (was laggy)
   end
 
+  local function setChannel(v)
+    local n = tonumber(v)
+    if not remote.validChannel(n) then return end   -- ignore partial/invalid input
+    config.channel = n
+    settings.save(config, screens)
+    if rhost then rhost.setChannel(n) end
+  end
+
   -- Dump selected colony data to paste.rs (JSON) and show the link. The payload
   -- build + upload lives in app/dump_service; here we only manage UI state.
   local function onDump(sel)
@@ -207,6 +216,7 @@ function M.start(cfgModule)
       if state.update and state.update.available then doInstall() else doCheck() end
     end,
     onMargin = setMargin,
+    onChannel = setChannel,
     onDump = onDump,
   })
 
