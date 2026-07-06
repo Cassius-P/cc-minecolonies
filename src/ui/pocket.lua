@@ -72,7 +72,7 @@ function M.start(cfgModule)
 
   -- Channel prompt overlay: prefilled input, validates a 5-digit channel.
   local prompt = frame:addFrame({ x = 1, y = 1, width = W, height = H, background = colors.black })
-  prompt.set("z", 500); prompt.set("visible", false)
+  prompt.set("z", 1000); prompt.set("visible", false)   -- above the loader overlay (z 900)
   local py = math.max(1, math.floor(H / 2) - 2)
   prompt:addLabel({ x = 2, y = py, width = W - 2, foreground = colors.white })
     :setText("Host link channel (10000-65535):")

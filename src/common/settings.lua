@@ -4,6 +4,7 @@
 ----------------------------------------------------------------------------
 
 local util = require("common.util")
+local remote = require("common.remote")
 local deepCopy = util.deepCopy
 
 local M = {}
@@ -19,7 +20,7 @@ function M.load(config, screens, isTheme)
   if not (ok and type(t) == "table") then return end
 
   if type(t.theme) == "string" and isTheme(t.theme) then config.theme = t.theme end
-  if type(t.channel) == "number" then config.channel = t.channel end
+  if remote.validChannel(t.channel) then config.channel = t.channel end
   if type(t.suggestions) == "table" then
     config.suggestions = config.suggestions or {}
     if type(t.suggestions.replaceMargin) == "number" then config.suggestions.replaceMargin = t.suggestions.replaceMargin end

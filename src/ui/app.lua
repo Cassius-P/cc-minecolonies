@@ -208,6 +208,15 @@ function M.start(cfgModule)
     mkScreen(name, config.screens[lastIdx], lastIdx)
   end
 
+  ----------------------------------------------------------------------------
+  -- Settings, then build the Basalt section frames, then theme + first scan
+  ----------------------------------------------------------------------------
+  settings.load(config, screens, theme.isTheme)
+  state.setTheme(config.theme)
+  -- settings.load may have restored a saved channel; move the host service onto
+  -- it and let the admin field (built below) read the loaded value.
+  if rhost then rhost.setChannel(remote.channelOr(config.channel)) end
+
   -- Computer terminal: native Basalt tabbed UI on the main frame.
   local mainFrame = basalt.getMainFrame()
   termUI = terminal.build(mainFrame, {
@@ -219,12 +228,6 @@ function M.start(cfgModule)
     onChannel = setChannel,
     onDump = onDump,
   })
-
-  ----------------------------------------------------------------------------
-  -- Settings, then build the Basalt section frames, then theme + first scan
-  ----------------------------------------------------------------------------
-  settings.load(config, screens, theme.isTheme)
-  state.setTheme(config.theme)
 
   local env = {
     state = state, hooks = hooks, redraw = redrawAll, reassign = reassignScreen,
