@@ -64,7 +64,7 @@ function M.start(cfgModule)
   layout.buildScreen(screen, env)
   theme.apply(config.theme, screens, config)
 
-  loader = loaderUI.build({ frame })
+  local loader = loaderUI.build({ frame })
   loader.show("Waiting for host")
 
   -- Keys: q quit, r manual refresh (re-HELLO). Everything else is footer buttons.

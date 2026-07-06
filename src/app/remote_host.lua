@@ -10,9 +10,11 @@ local remote = require("common.remote")
 local M = {}
 
 function M.new(getSnapshot)
+  -- Guard sends with serializable(): a stray function/userdata in the data
+  -- table would otherwise make rednet throw and kill the calling coroutine.
   local function broadcast()
     local snap = getSnapshot()
-    if snap then rednet.broadcast(snap, remote.PROTOCOL) end
+    if snap and remote.serializable(snap) then rednet.broadcast(snap, remote.PROTOCOL) end
   end
 
   local function serve(basalt)
@@ -21,7 +23,7 @@ function M.new(getSnapshot)
         local sender, msg = rednet.receive(remote.PROTOCOL)
         if type(msg) == "table" and msg.kind == remote.HELLO then
           local snap = getSnapshot()
-          if snap then rednet.send(sender, snap, remote.PROTOCOL) end
+          if snap and remote.serializable(snap) then rednet.send(sender, snap, remote.PROTOCOL) end
         end
       end
     end)
