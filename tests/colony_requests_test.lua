@@ -39,6 +39,36 @@ do
   t.eq(ot[1].item_name, "minecraft:torch")
 end
 
+t.case("domum block: type shown in the materials line")
+do
+  local raw = {
+    { name = "1-4 Framed Sea Lantern", target = "Builder's Hut", count = 4,
+      desc = "1-4 Framed Sea Lantern",
+      items = { {
+        name = "domum_ornamentum:fancy_light", displayName = "[Framed Sea Lantern]",
+        fingerprint = "fp_fl",
+        components = { ["domum_ornamentum:texture_data"] = {
+          ["minecraft:block/oak_planks"] = "minecraft:gold_block",
+          ["minecraft:block/glowstone"]  = "minecraft:sea_lantern",
+        } },
+      } } },
+  }
+  local _, bd = requests.categorize(raw)
+  t.eq(#bd, 1, "domum request -> builder")
+  t.eq(bd[1].displayLabel, "Framed Sea Lantern", "label keeps MC display name")
+  t.eq(bd[1].materials, "Fancy Light: Gold Block + Sea Lantern", "block type prefixes the materials")
+end
+
+t.case("domum block: type shown even with no texture materials")
+do
+  local raw = {
+    { name = "Fancy Light", target = "Builder's Hut", count = 1, desc = "Fancy Light",
+      items = { { name = "domum_ornamentum:fancy_light", displayName = "[Fancy Light]" } } },
+  }
+  local _, bd = requests.categorize(raw)
+  t.eq(bd[1].materials, "Fancy Light", "no materials -> materials line is just the block type")
+end
+
 t.case("categorize tolerates empty / missing items")
 do
   local eq, bd, ot = requests.categorize({ { name = "junk", items = {} } })

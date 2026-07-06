@@ -49,7 +49,11 @@ local function domumInfo(it)
   if type(it.name) ~= "string" or not it.name:find("^domum_ornamentum:") then return nil end
   local td = it.components and it.components["domum_ornamentum:texture_data"]
   local base = (it.displayName or it.name):gsub("^%[", ""):gsub("%]$", "")
-  if type(td) ~= "table" then return base, nil end
+  -- The Domum block family (e.g. "fancy_light" -> "Fancy Light") lives in the
+  -- item id; the MC display name ("Framed Sea Lantern") drops it, so lead the
+  -- materials line with it.
+  local btype = prettyMat(it.name)
+  if type(td) ~= "table" then return base, btype end
   -- Known slot order (primary then secondary), then any other slots. Blocks may
   -- have just one material -- that is fine, we simply list what is present.
   local SLOT_ORDER = { "minecraft:block/oak_planks", "minecraft:block/dark_oak_planks" }
@@ -60,8 +64,8 @@ local function domumInfo(it)
   for k, v in pairs(td) do
     if not seen[k] then mats[#mats + 1] = prettyMat(v) end
   end
-  if #mats == 0 then return base, nil end
-  return base, table.concat(mats, " + ")
+  if #mats == 0 then return base, btype end
+  return base, btype .. ": " .. table.concat(mats, " + ")
 end
 
 -- "Leather -> Chain", "up to Chain", "Leather+", or "Any".
