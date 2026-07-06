@@ -69,6 +69,31 @@ do
   t.eq(bd[1].materials, "Fancy Light", "no materials -> materials line is just the block type")
 end
 
+t.case("domum vanilla-compat block: type prefix dropped")
+do
+  local raw = {
+    { name = "Oak Stairs", target = "Builder's Hut", count = 8, desc = "Oak Stairs",
+      items = { {
+        name = "domum_ornamentum:vanilla_stairs_compat", displayName = "[Oak Stairs]",
+        components = { ["domum_ornamentum:texture_data"] = {
+          ["minecraft:block/oak_planks"] = "minecraft:oak_planks",
+        } },
+      } } },
+  }
+  local _, bd = requests.categorize(raw)
+  t.eq(bd[1].materials, "Oak Planks", "vanilla-compat -> materials only, no type prefix")
+end
+
+t.case("domum vanilla-compat with no materials: no materials line")
+do
+  local raw = {
+    { name = "Oak Slab", target = "Builder's Hut", count = 8, desc = "Oak Slab",
+      items = { { name = "domum_ornamentum:vanilla_slab_compat", displayName = "[Oak Slab]" } } },
+  }
+  local _, bd = requests.categorize(raw)
+  t.falsy(bd[1].materials, "vanilla-compat, no texture -> no materials line")
+end
+
 t.case("categorize tolerates empty / missing items")
 do
   local eq, bd, ot = requests.categorize({ { name = "junk", items = {} } })

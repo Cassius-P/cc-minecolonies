@@ -51,8 +51,11 @@ local function domumInfo(it)
   local base = (it.displayName or it.name):gsub("^%[", ""):gsub("%]$", "")
   -- The Domum block family (e.g. "fancy_light" -> "Fancy Light") lives in the
   -- item id; the MC display name ("Framed Sea Lantern") drops it, so lead the
-  -- materials line with it.
-  local btype = prettyMat(it.name)
+  -- materials line with it. Vanilla-shape wrappers (vanilla_*_compat) carry a
+  -- noise type ("Vanilla Stairs Compat"), so drop the prefix for those.
+  local raw = tostring(it.name):gsub("^.*[:/]", "")
+  local btype
+  if not (raw:find("vanilla") or raw:find("compat")) then btype = prettyMat(it.name) end
   if type(td) ~= "table" then return base, btype end
   -- Known slot order (primary then secondary), then any other slots. Blocks may
   -- have just one material -- that is fine, we simply list what is present.
@@ -65,7 +68,7 @@ local function domumInfo(it)
     if not seen[k] then mats[#mats + 1] = prettyMat(v) end
   end
   if #mats == 0 then return base, btype end
-  return base, btype .. ": " .. table.concat(mats, " + ")
+  return base, (btype and (btype .. ": ") or "") .. table.concat(mats, " + ")
 end
 
 -- "Leather -> Chain", "up to Chain", "Leather+", or "Any".
