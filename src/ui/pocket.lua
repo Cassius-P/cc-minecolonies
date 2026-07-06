@@ -16,7 +16,8 @@ local loaderUI = require("ui.loader")
 
 local M = {}
 
-function M.start(config)
+function M.start(cfgModule)
+  local config = cfgModule.config
   if not remote.openModem() then
     term.clear(); term.setCursorPos(1, 1)
     term.setTextColor(colors.red)
