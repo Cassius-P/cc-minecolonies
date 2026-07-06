@@ -24,6 +24,8 @@ local dumpService = require("app.dump_service")
 local keys     = require("app.keys")
 local teardown = require("app.teardown")
 local colonyPort = require("common.ports.colony")
+local remote     = require("common.remote")
+local remoteHost = require("app.remote_host")
 
 local M = {}
 
@@ -51,6 +53,13 @@ function M.start(cfgModule)
   local state = store.new(config)   -- explicit state container (app/store.lua)
   local screens, screenByName = {}, {}
   local loading, loader = true, nil   -- Basalt loading overlay (set up below)
+
+  -- Remote pocket monitors: opt-in, only when a wireless/ender modem is present.
+  local remoteOn = remote.openModem()
+  local rhost = remoteOn and remoteHost.new(function()
+    if not state.data then return nil end
+    return remote.snapshot(state.data, state.data.name, state.data.id)
+  end) or nil
 
   ----------------------------------------------------------------------------
   -- Build one Basalt frame + Display per monitor
@@ -94,6 +103,7 @@ function M.start(cfgModule)
     else
       state.setScanError("Scan error: " .. tostring(res))
     end
+    if rhost then rhost.broadcast() end
   end
 
   local function checkUpdate()
@@ -288,6 +298,9 @@ function M.start(cfgModule)
   basalt.schedule(function()
     while true do sleep(3600); checkUpdate(); redrawAll() end
   end)
+
+  -- Answer pocket HELLO requests with the current snapshot.
+  if rhost then rhost.serve(basalt) end
 
   basalt.run()
 

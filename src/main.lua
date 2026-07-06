@@ -8,6 +8,9 @@
 package.path = "/?.lua;/?/init.lua;" .. package.path
 
 local config = require("config")
-local app    = require("ui.app")
 
-app.start(config)
+if pocket then
+  require("ui.pocket").start(config)
+else
+  require("ui.app").start(config)
+end

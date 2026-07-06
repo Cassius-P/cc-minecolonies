@@ -37,7 +37,8 @@ function M.build(tab, ctx)
     else
       set(lColony, "scanning...", colors.gray)
     end
-    set(lFoot, ("Theme %s   next scan %2ds   %s"):format(ctx.config.theme, state.countdown, state.msg or ""))
+    set(lFoot, ("Theme %s   ID %d   next scan %2ds   %s")
+      :format(ctx.config.theme, os.getComputerID(), state.countdown, state.msg or ""))
   end
 end
 

@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.65",
+  version = "3.66",
 
   files = {
     -- entry + config + vendored dependency
@@ -22,6 +22,8 @@ return {
     { src = "src/app/dump_service.lua", dst = "/app/dump_service.lua" },
     { src = "src/app/keys.lua",         dst = "/app/keys.lua" },
     { src = "src/app/teardown.lua",     dst = "/app/teardown.lua" },
+    { src = "src/app/remote_host.lua",   dst = "/app/remote_host.lua" },
+    { src = "src/app/remote_client.lua", dst = "/app/remote_client.lua" },
     -- self-updating installer/updater
     { src = "install.lua",   dst = "/install.lua" },
     { src = "update.lua",    dst = "/update.lua" },
@@ -32,6 +34,7 @@ return {
     { src = "src/common/log.lua",         dst = "/common/log.lua" },
     { src = "src/common/peripherals.lua", dst = "/common/peripherals.lua" },
     { src = "src/common/settings.lua",    dst = "/common/settings.lua" },
+    { src = "src/common/remote.lua",      dst = "/common/remote.lua" },
     { src = "src/common/updater.lua",     dst = "/common/updater.lua" },
     { src = "src/common/ports/colony.lua", dst = "/common/ports/colony.lua" },
     { src = "src/common/ports/bridge.lua", dst = "/common/ports/bridge.lua" },
@@ -60,6 +63,7 @@ return {
     { src = "src/ui/terminal.lua", dst = "/ui/terminal.lua" },
     { src = "src/ui/app.lua",      dst = "/ui/app.lua" },
     { src = "src/ui/loader.lua",   dst = "/ui/loader.lua" },
+    { src = "src/ui/pocket.lua",   dst = "/ui/pocket.lua" },
     -- native modals (extracted from layout)
     { src = "src/ui/modals/common.lua",   dst = "/ui/modals/common.lua" },
     { src = "src/ui/modals/apply.lua",    dst = "/ui/modals/apply.lua" },
