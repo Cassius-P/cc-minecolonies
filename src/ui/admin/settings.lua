@@ -40,6 +40,14 @@ function M.build(tab, ctx)
   inChannel:setText(tostring(ctx.config.channel or 10000))
   inChannel:onChange("text", function(_, v) if ctx.onChannel then ctx.onChannel(v) end end)
 
+  tab:addLabel({ x = 2, y = 14, width = 16 }):setText("Polling (s)"):setForeground(colors.white)
+  local inPolling = tab:addInput({ x = 18, y = 14, width = 5, height = 1, placeholder = "5",
+    background = colors.gray, foreground = colors.white })
+  tab:addLabel({ x = 2, y = 15, width = tw - 2, foreground = colors.gray })
+    :setText("Colony scan interval in seconds (1-60).")
+  inPolling:setText(tostring(ctx.config.refreshSeconds or 5))
+  inPolling:onChange("text", function(_, v) if ctx.onPolling then ctx.onPolling(v) end end)
+
   local sg = ctx.config.suggestions or {}
   inReplace:setText(tostring(sg.replaceMargin or 1))
   inReassign:setText(tostring(sg.reassignMargin or 1))

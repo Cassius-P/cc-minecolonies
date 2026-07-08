@@ -156,6 +156,14 @@ function M.start(cfgModule)
     if rhost then rhost.setChannel(n) end
   end
 
+  local function setPolling(v)
+    local n = tonumber(v)
+    if not n then return end   -- ignore partial/empty input
+    config.refreshSeconds = math.max(1, math.min(60, math.floor(n)))
+    settings.save(config, screens)
+    state.markScan()      -- apply on the next tick
+  end
+
   -- Dump selected colony data to paste.rs (JSON) and show the link. The payload
   -- build + upload lives in app/dump_service; here we only manage UI state.
   local function onDump(sel)
@@ -226,6 +234,7 @@ function M.start(cfgModule)
     end,
     onMargin = setMargin,
     onChannel = setChannel,
+    onPolling = setPolling,
     onDump = onDump,
   })
 

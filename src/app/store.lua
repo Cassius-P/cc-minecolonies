@@ -19,10 +19,11 @@
 local M = {}
 
 function M.new(config)
-  local refresh = config.refreshSeconds
+  -- Read live so the admin "polling" edit takes effect on the next re-arm.
+  local function refresh() return config.refreshSeconds or 5 end
 
   local s = {
-    data = nil, msg = "", countdown = refresh, needScan = false,
+    data = nil, msg = "", countdown = refresh(), needScan = false,
     update = nil, checking = false, checkFailed = false, pendingInstall = false,
     dumping = false, dumpLink = nil, dumpError = nil,
     booting = true, cancelBoot = false,
@@ -31,10 +32,10 @@ function M.new(config)
 
   -- Colony scan ----------------------------------------------------------
   function s.setData(data, msg)
-    s.data, s.msg, s.needScan, s.countdown = data, msg, false, refresh
+    s.data, s.msg, s.needScan, s.countdown = data, msg, false, refresh()
   end
   function s.setScanError(msg)
-    s.msg, s.needScan, s.countdown = msg, false, refresh
+    s.msg, s.needScan, s.countdown = msg, false, refresh()
   end
   function s.markScan() s.needScan = true end
   function s.tick() s.countdown = s.countdown - 1; return s.countdown end

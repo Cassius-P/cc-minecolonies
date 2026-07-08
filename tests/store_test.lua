@@ -31,6 +31,15 @@ do
   t.eq(s.countdown, 5)
 end
 
+t.case("countdown re-arms from live config.refreshSeconds")
+do
+  local cfg = { refreshSeconds = 5, theme = "deepslate" }
+  local s = store.new(cfg)
+  cfg.refreshSeconds = 12          -- admin edits the polling interval live
+  s.setData({}, "")
+  t.eq(s.countdown, 12, "re-arm uses current config value, not a cached one")
+end
+
 t.case("markScan / tick")
 do
   local s = newStore()
