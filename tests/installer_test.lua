@@ -34,3 +34,13 @@ t.eq(installer.decide({ diff = true, exists = true, remote = { sha = "deadbeef",
 
 t.case("decide: missing local -> get")
 t.eq(installer.decide({ diff = true, exists = false, remote = { sha = sha, size = 3 } }), "get")
+
+t.case("decide: oversize file compared by size only (no hash)")
+calls = 0
+-- same size, over hashMax: skip WITHOUT hashing (pure-Lua sha1 too slow on CC).
+t.eq(installer.decide({ diff = true, exists = true, remote = { sha = "x", size = 300000 },
+  hashMax = installer.HASH_MAX, localSize = 300000, localSha = localSha }), "skip", "big + same size -> skip")
+t.eq(calls, 0, "oversize file not hashed")
+-- same over-max size threshold but different size -> still get.
+t.eq(installer.decide({ diff = true, exists = true, remote = { sha = "x", size = 300000 },
+  hashMax = installer.HASH_MAX, localSize = 299999, localSha = localSha }), "get", "big + size differs -> get")

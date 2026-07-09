@@ -28,20 +28,16 @@ function M.run(opts)
   local basalt = require("basalt")
   local W, H = term.getSize()
   local main = basalt.getMainFrame()
-  main.set("background", colors.black)
 
   main:addLabel({ x = 2, y = 1, width = W - 2, background = colors.black, foreground = colors.yellow })
     :setText(opts.title or "colony_dashboard")
-  if opts.subtitle then
-    main:addLabel({ x = 2, y = 2, width = W - 2, background = colors.black, foreground = colors.orange })
-      :setText(opts.subtitle)
-  end
+  main:addLabel({ x = 2, y = 2, width = W - 2, background = colors.black, foreground = colors.orange })
+    :setText(opts.subtitle or "")
 
   -- Log region: rows 4 .. H-2. One reusable label per visible row; the tail of
   -- the line buffer is painted each refresh (so it always shows the newest).
-  local top, bottom = 4, H - 2
   local rows = {}
-  for y = top, bottom do
+  for y = 4, H - 2 do
     rows[#rows + 1] = main:addLabel({ x = 2, y = y, width = W - 2,
       background = colors.black, foreground = colors.white }):setText("")
   end
@@ -56,23 +52,31 @@ function M.run(opts)
     end
   end
 
-  local barW = W - 4
-  local barBg = main:addFrame({ x = 2, y = H - 1, width = barW, height = 1, background = colors.gray })
-  local fill = barBg:addFrame({ x = 1, y = 1, width = 1, height = 1, background = colors.lime })
-  local status = main:addLabel({ x = 2, y = H, width = W - 2, background = colors.black, foreground = colors.lightGray })
+  -- Native Basalt progress bar + a status line (both explicitly initialised so a
+  -- default "Label" can never show through while work is in progress).
+  local bar = main:addProgressBar({ x = 2, y = H - 1, width = W - 4, height = 1,
+    progress = 0, progressColor = colors.lime, background = colors.gray, direction = "right" })
+  local status = main:addLabel({ x = 2, y = H, width = W - 2,
+    background = colors.black, foreground = colors.lightGray }):setText("Preparing...")
 
   local res
   basalt.schedule(function()
-    res = opts.install(function(i, n, name, action)
-      local a = ACTION[action] or ACTION.get
-      log[#log + 1] = { text = a[1] .. " " .. tostring(name), color = a[2] }
-      repaint()
-      fill:setSize(math.max(1, math.floor(barW * i / math.max(1, n))), 1)
-      status:setText(("%d/%d"):format(i, n))
-    end) or {}
-
-    local ok = #(res.failed or {}) == 0
-    if ok then
+    local ok, err = pcall(function()
+      res = opts.install(function(i, n, name, action)
+        local a = ACTION[action] or ACTION.get
+        log[#log + 1] = { text = a[1] .. " " .. tostring(name), color = a[2] }
+        repaint()
+        bar.set("progress", math.max(0, math.min(100, math.floor(100 * i / math.max(1, n) + 0.5))))
+        status:setText(("%d/%d"):format(i, n)):setForeground(colors.lightGray)
+        sleep(0)   -- yield so Basalt renders this file before the next one
+      end)
+    end)
+    res = res or {}
+    if not ok then
+      res.failed = res.failed or {}
+      res.failed[#res.failed + 1] = tostring(err)   -- so the caller does NOT reboot
+      status:setText("Error: " .. tostring(err)):setForeground(colors.red)
+    elseif #(res.failed or {}) == 0 then
       status:setText(("Done. %d written, %d unchanged%s.  v%s"):format(
         res.wrote or 0, res.skipped or 0,
         (res.removed and res.removed > 0) and (", " .. res.removed .. " removed") or "",

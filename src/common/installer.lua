@@ -36,13 +36,20 @@ function M.remoteBlobShas(repo, ref)
   return map
 end
 
+-- Pure-Lua sha1 is too slow to run over a large file (e.g. the ~300KB vendored
+-- basalt.lua) on a CC computer, so files above this size are compared by size
+-- only: a real content change to such a file virtually always changes its size.
+M.HASH_MAX = 20000
+
 -- Decide what to do with one manifest file. Pure: `localSha` is a thunk called
--- ONLY when a size match makes a content hash necessary. Returns "keep" (config
--- preserved), "skip" (identical), or "get" (download).
+-- ONLY when a size match makes a content hash necessary (and the file is small
+-- enough to hash cheaply). Returns "keep" (config preserved), "skip" (identical),
+-- or "get" (download).
 function M.decide(o)
   if o.preserve and o.exists then return "keep" end
   if not (o.diff and o.remote and o.exists) then return "get" end
   if o.localSize ~= o.remote.size then return "get" end
+  if o.hashMax and o.remote.size > o.hashMax then return "skip" end   -- too big to hash: trust size
   if o.localSha() == o.remote.sha then return "skip" end
   return "get"
 end
@@ -118,6 +125,7 @@ function M.install(repo, ref, manifest, opts)
     local dst, exists = e.dst, fs.exists(e.dst)
     local action = M.decide({
       preserve = preserve[dst], diff = diff, remote = remote and remote[e.src], exists = exists,
+      hashMax = M.HASH_MAX,
       localSize = exists and fs.getSize(dst) or -1,
       localSha = function() local b = readAll(dst); return b and M.gitBlobSha(b) or "" end,
     })
