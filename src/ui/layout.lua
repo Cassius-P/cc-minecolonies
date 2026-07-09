@@ -40,6 +40,9 @@ local M = {}
 M.SECTIONS = SECTIONS
 M.SECTION_ORDER = SECTION_ORDER
 M.normalizeColumns = engine.normalizeColumns
+M.activate = engine.activate
+M.blankLayout = engine.blankLayout
+M.MAX_LAYOUTS = engine.MAX_LAYOUTS
 
 ----------------------------------------------------------------------------
 -- Bind the pure geometry (engine.computeRects) to the Basalt section frames.
@@ -177,6 +180,19 @@ end
 
 function M.toggleEdit(screen) screen.edit = not screen.edit end
 
+-- Switch the active layout slot (footer 1-5 buttons). No-op for the pocket
+-- (single-layout) screen, which has no `layouts`.
+function M.setLayout(screen, i)
+  if not screen.layouts then return end
+  i = math.max(1, math.min(engine.MAX_LAYOUTS, math.floor(i)))
+  if i == screen.activeLayout then return end
+  screen.activeLayout = i
+  engine.activate(screen)
+  screen.scroll = {}; screen.modal = nil
+  M.applyRects(screen)
+  screen.env.hooks.save()
+end
+
 -- EDIT controls on a section's bottom row: reorder, change column, resize height.
 local function moveControls(screen, id, w, h)
   local ci = findCol(screen, id)
@@ -207,23 +223,32 @@ local function drawFooter(screen, data, state, hooks)
   local W = screen.W
   draw.fillRect(1, 1, W, 1, C.cardTitle)
 
-  -- Left: colony info. The scan progress bar takes the slot that used to show
-  -- the theme name, sized to the gap before the right-side buttons.
+  -- Left: colony info.
   local info = string.format("%s #%s", tostring(data and data.name or "?"), tostring(data and data.id or "?"))
   draw.put(2, 1, info, C.dim, C.cardTitle)
-  if screen.scanBar then
-    local bx = 2 + #info + 2
-    local bw = math.min(16, (W - 4) - bx + 1)
-    if bw >= 4 then screen.scanBar.set("x", bx); screen.scanBar.set("width", bw) end
-  end
 
-  -- Right: small EDIT icon; THEME + SECTIONS appear (to its left) only in EDIT.
+  -- Right cluster: EDIT icon; THEME + SECTIONS appear (to its left) in EDIT,
+  -- otherwise the 1-N layout switcher (highlighting the active layout).
   local rx = W - 1
   rx = rbutton(rx, screen.edit and "E*" or "E",
     screen.edit and C.good or C.accent2, colors.black, function() M.toggleEdit(screen) end)
   if screen.edit then
     rx = rbutton(rx, "THEME", C.accent, colors.black, function() hooks.cycleTheme() end)
     rx = rbutton(rx, "SECTIONS", C.btn, C.btnText, function() screen.modal = { kind = "sections" } end)
+  elseif screen.layouts then
+    for i = engine.MAX_LAYOUTS, 1, -1 do
+      local on = (screen.activeLayout == i)
+      rx = rbutton(rx, tostring(i), on and C.good or C.btn, on and colors.black or C.btnText,
+        function() M.setLayout(screen, i) end)
+    end
+  end
+
+  -- Scan progress bar fills the theme-name slot, from after the colony info to
+  -- the left edge of the right cluster.
+  if screen.scanBar then
+    local bx = 2 + #info + 2
+    local bw = math.min(16, rx - bx + 1)
+    if bw >= 4 then screen.scanBar.set("x", bx); screen.scanBar.set("width", bw) end
   end
 end
 

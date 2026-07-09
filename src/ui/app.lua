@@ -81,12 +81,19 @@ function M.start(cfgModule)
     frame.set("term", mon)
     local W, H = mon.getSize()
 
+    -- Layout slot 1 from the config-screen; slots 2..MAX start empty. The live
+    -- s.columns/enabled/weights/cfgIdx are references into the active slot.
+    local en = {}
+    if type(cfg.enabled) == "table" then
+      for k, v in pairs(cfg.enabled) do en[k] = v and true or false end
+    end
+    local layouts = { { columns = deepCopy(cfg.columns or { {}, {} }), enabled = en, weights = {}, cfgIdx = cfgIdx } }
+    for i = 2, layout.MAX_LAYOUTS do layouts[i] = layout.blankLayout() end
+
     local s = { mon = mon, name = name, frame = frame,
       W = W, H = H, scroll = {}, modal = nil, edit = false,
-      columns = deepCopy(cfg.columns), enabled = {}, weights = {}, cfgIdx = cfgIdx }
-    if type(cfg.enabled) == "table" then
-      for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end
-    end
+      layouts = layouts, activeLayout = 1 }
+    layout.activate(s)
     screens[#screens + 1] = s
     screenByName[name] = s
     return s
@@ -183,13 +190,15 @@ function M.start(cfgModule)
   end
 
   local function reassignScreen(i)
-    local s = screens[i]; if not s then return end
-    s.cfgIdx = ((s.cfgIdx or 1) % #config.screens) + 1
-    local cfg = config.screens[s.cfgIdx]
-    s.columns = deepCopy(cfg.columns)
-    s.enabled = {}
-    if type(cfg.enabled) == "table" then for k, v in pairs(cfg.enabled) do s.enabled[k] = v and true or false end end
-    s.weights = {}
+    local s = screens[i]; if not (s and s.layouts) then return end
+    local L = s.layouts[s.activeLayout]
+    L.cfgIdx = ((L.cfgIdx or 1) % #config.screens) + 1
+    local cfg = config.screens[L.cfgIdx]
+    L.columns = deepCopy(cfg.columns)
+    L.enabled = {}
+    if type(cfg.enabled) == "table" then for k, v in pairs(cfg.enabled) do L.enabled[k] = v and true or false end end
+    L.weights = {}
+    layout.activate(s)
     s.scroll = {}; s.modal = nil
     layout.applyRects(s)
     settings.save(config, screens)

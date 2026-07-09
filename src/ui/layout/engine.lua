@@ -13,8 +13,34 @@ M.SECTION_ORDER = { "status", "workforce", "workers", "orders", "requests", "leg
 -- Sections hidden unless explicitly enabled (enabled[id] == true).
 M.DEFAULT_HIDDEN = { jobskills = true, research = true }
 
+-- A monitor holds up to this many independent layout slots (columns/enabled/
+-- weights/cfgIdx), switchable from the footer. Slot 1 is populated from config;
+-- the rest start empty.
+M.MAX_LAYOUTS = 5
+
 local VALID = {}
 for _, id in ipairs(M.SECTION_ORDER) do VALID[id] = true end
+
+-- enabled map with every section hidden (an "empty" layout).
+function M.emptyEnabled()
+  local e = {}
+  for _, id in ipairs(M.SECTION_ORDER) do e[id] = false end
+  return e
+end
+
+-- A fresh empty layout slot.
+function M.blankLayout()
+  return { columns = { {}, {} }, enabled = M.emptyEnabled(), weights = {}, cfgIdx = 1 }
+end
+
+-- Point a screen's live layout fields at its active slot, so all existing
+-- render / edit / persistence code keeps reading screen.columns/enabled/etc.
+function M.activate(screen)
+  local L = screen.layouts and screen.layouts[screen.activeLayout or 1]
+  if not L then return end
+  screen.columns, screen.enabled, screen.weights, screen.cfgIdx =
+    L.columns, L.enabled, L.weights, L.cfgIdx
+end
 
 local COLGAP = 1         -- blank column between the two columns
 local DEFAULT_WEIGHT = 6 -- baseline height share, so a section can shrink below default
