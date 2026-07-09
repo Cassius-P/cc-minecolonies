@@ -159,14 +159,11 @@ function M.draw(x, y, w, h, screen, d)
     local col = scolor(ds)
     local sx, sy = pos(e.x, e.y)
 
-    -- Highlight the node itself: available is unlockable now, so fill it; the
-    -- others just colour the name by status.
-    if ds == "available" then
-      vfill(sx, sy, TILE.w, C.accent)
-      vput(sx, sy, trunc(node.name, TILE.w), colors.black, C.accent)
-    else
-      vput(sx, sy, trunc(node.name, TILE.w), col, C.card)
-    end
+    -- Highlight every node with a status-coloured background + centred,
+    -- contrasting text.
+    vfill(sx, sy, TILE.w, col)
+    local nm = trunc(node.name, TILE.w)
+    vput(sx + math.floor((TILE.w - #nm) / 2), sy, nm, colors.black, col)
 
     local hx1, hy1 = math.max(sx, vx0), math.max(sy, vy0)
     local hx2, hy2 = math.min(sx + TILE.w - 1, vx1), math.min(sy + TILE.h - 1, vy1)
