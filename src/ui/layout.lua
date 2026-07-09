@@ -114,8 +114,9 @@ function M.buildScreen(screen, env)
     return true
   end)
 
-  -- Native Basalt progress bar for the scan countdown, in the footer gap left of
-  -- the EDIT button. Driven by M.updateScanBar from the app's fine-grained loop.
+  -- Native Basalt progress bar for the scan countdown, positioned by drawFooter
+  -- (after the colony info, replacing the theme-name slot). Driven by
+  -- M.updateScanBar from the app's fine-grained loop.
   local barW = math.min(14, screen.W - 20)
   if barW >= 4 then
     screen.scanBar = ff:addProgressBar({ x = screen.W - 3 - barW, y = 1,
@@ -206,11 +207,15 @@ local function drawFooter(screen, data, state, hooks)
   local W = screen.W
   draw.fillRect(1, 1, W, 1, C.cardTitle)
 
-  -- Left: colony / theme info.
-  local info = string.format("%s #%s  %s",
-    tostring(data and data.name or "?"), tostring(data and data.id or "?"),
-    theme.THEMES[state.theme] and state.theme or "?")
+  -- Left: colony info. The scan progress bar takes the slot that used to show
+  -- the theme name, sized to the gap before the right-side buttons.
+  local info = string.format("%s #%s", tostring(data and data.name or "?"), tostring(data and data.id or "?"))
   draw.put(2, 1, info, C.dim, C.cardTitle)
+  if screen.scanBar then
+    local bx = 2 + #info + 2
+    local bw = math.min(16, (W - 4) - bx + 1)
+    if bw >= 4 then screen.scanBar.set("x", bx); screen.scanBar.set("width", bw) end
+  end
 
   -- Right: small EDIT icon; THEME + SECTIONS appear (to its left) only in EDIT.
   local rx = W - 1
