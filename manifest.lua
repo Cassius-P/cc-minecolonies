@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.73",
+  version = "3.74",
 
   files = {
     -- entry + config + vendored dependency
@@ -30,7 +30,9 @@ return {
     { src = "uninstall.lua", dst = "/uninstall.lua" },
     -- common
     { src = "src/common/util.lua",        dst = "/common/util.lua" },
+    { src = "src/common/sha1.lua",        dst = "/common/sha1.lua" },
     { src = "src/common/installer.lua",   dst = "/common/installer.lua" },
+    { src = "src/common/install_ui.lua",  dst = "/common/install_ui.lua" },
     { src = "src/common/log.lua",         dst = "/common/log.lua" },
     { src = "src/common/peripherals.lua", dst = "/common/peripherals.lua" },
     { src = "src/common/settings.lua",    dst = "/common/settings.lua" },

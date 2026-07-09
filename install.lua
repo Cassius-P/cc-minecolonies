@@ -47,17 +47,21 @@ local function bootWrite(dst, body)
   f.write(body); f.close(); return true
 end
 
--- Bootstrap: Basalt (if missing) + the installer module (always refresh, so it
--- can never go stale relative to the manifest it will act on).
+-- Bootstrap: Basalt (if missing) + the installer module, its sha1 dependency,
+-- and the shared install UI (always refreshed, so they can never go stale
+-- relative to the manifest they act on).
 if not fs.exists("/basalt.lua") then
   local b = bootFetch("vendor/basalt.lua"); if b then bootWrite("/basalt.lua", b) end
 end
-do
-  local inst = bootFetch("src/common/installer.lua")
-  if inst then bootWrite("/common/installer.lua", inst) end
+for _, m in ipairs({
+  { "src/common/sha1.lua", "/common/sha1.lua" },
+  { "src/common/installer.lua", "/common/installer.lua" },
+  { "src/common/install_ui.lua", "/common/install_ui.lua" },
+}) do
+  local b = bootFetch(m[1]); if b then bootWrite(m[2], b) end
 end
 
-local hasBasalt, basalt = pcall(require, "basalt")
+local hasBasalt = pcall(require, "basalt")
 local okI, installer = pcall(require, "common.installer")
 if not okI then error("Could not load installer module (check http + repo)", 0) end
 
@@ -65,56 +69,32 @@ local manifest = installer.loadManifest(installer.fetch(REPO, REF, "manifest.lua
 if not manifest then error("Could not fetch/parse manifest.lua (check http + repo)", 0) end
 
 local function run(progress)
-  return installer.install(REPO, REF, manifest, { preserveConfig = isUpdate, progress = progress })
+  -- Diff only on update (a fresh install has nothing local to compare).
+  return installer.install(REPO, REF, manifest, { preserveConfig = isUpdate, diff = isUpdate, progress = progress })
 end
 
 local res
 if hasBasalt then
-  local w = select(1, term.getSize())
-  local main = basalt.getMainFrame()
-  main:addLabel({ x = 2, y = 2, width = w - 2, foreground = colors.yellow })
-    :setText((isUpdate and "Updating" or "Installing") .. " colony_dashboard")
-  local status = main:addLabel({ x = 2, y = 4, width = w - 2, foreground = colors.white })
-  local barW = w - 4
-  local bar = main:addFrame({ x = 2, y = 6, width = barW, height = 1, backgroundColor = colors.gray })
-  local fill = bar:addFrame({ x = 1, y = 1, width = 1, height = 1, backgroundColor = colors.lime })
-  local doneLbl = main:addLabel({ x = 2, y = 8, width = w - 2, foreground = colors.lightGray })
-  basalt.schedule(function()
-    res = run(function(i, n, name)
-      status:setText(("%d/%d  %s"):format(i, n, name))
-      fill:setSize(math.max(1, math.floor(barW * i / n)), 1)
-    end)
-    if #res.failed > 0 then
-      status:setText(("Done with %d error(s)."):format(#res.failed)):setForeground(colors.red)
-    else
-      status:setText(("Done. Wrote %d, kept %d.  v%s"):format(res.wrote, res.kept, res.version or "?"))
-        :setForeground(colors.lime)
-    end
-    doneLbl:setText(isUpdate and "Reboot to apply." or "Reboot to auto-launch.")
-    sleep(2)
-    basalt.stop()
-  end)
-  basalt.run()
-  term.clear(); term.setCursorPos(1, 1)
-  -- Success is fully reported in-frame (one screen). Only spill to text if
-  -- something failed to write, so the user sees exactly which files.
-  if res and #res.failed > 0 then
-    term.setTextColor(colors.red); print("FAILED to write:")
-    for _, f in ipairs(res.failed) do print("  " .. f) end
-    term.setTextColor(colors.white)
-    print(("(Wrote %d, kept %d, version %s)"):format(res.wrote, res.kept, res.version or "?"))
+  local okUI, installUI = pcall(require, "common.install_ui")
+  if okUI then
+    res = installUI.run({
+      title = (isUpdate and "Updating" or "Installing") .. " colony_dashboard",
+      subtitle = "v" .. tostring(manifest.version or "?"),
+      install = run,
+    })
   end
-else
+end
+if not res then
   io.write(isUpdate and "Updating" or "Installing")
   res = run(function() io.write(".") end)
   print("")
-  print(("Wrote %d, kept %d config file(s), version %s")
-    :format(res.wrote, res.kept, res.version or "?"))
-  if #res.failed > 0 then
-    term.setTextColor(colors.red); print("FAILED to write:")
-    for _, f in ipairs(res.failed) do print("  " .. f) end
-    term.setTextColor(colors.white)
-  else
-    print(isUpdate and "Update complete. Reboot to apply." or "Install complete. Reboot to auto-launch.")
-  end
+end
+
+if res and #res.failed > 0 then
+  term.setTextColor(colors.red); print("FAILED to write:")
+  for _, f in ipairs(res.failed) do print("  " .. f) end
+  term.setTextColor(colors.white)
+  print(("(Wrote %d, unchanged %d, version %s)"):format(res.wrote, res.skipped or 0, res.version or "?"))
+else
+  print(isUpdate and "Update complete. Reboot to apply." or "Install complete. Reboot to auto-launch.")
 end
