@@ -16,9 +16,9 @@ local C = theme.C
 local M = {}
 M.title = "Research"
 
--- One fixed, readable tile size (name row + progress row) with generous gaps so
--- the connector lines have room to breathe.
-local TILE = { w = 18, h = 2, gapX = 3, gapY = 2 }
+-- One fixed, readable single-row tile (just the node name, coloured by status)
+-- with generous gaps so the connector lines have room to breathe.
+local TILE = { w = 18, h = 1, gapX = 3, gapY = 2 }
 
 local function scolor(ds)
   if ds == "finished" then return C.good
@@ -128,23 +128,20 @@ function M.draw(x, y, w, h, screen, d)
     if ww > room then ww = room end
     if ww > 0 then draw.fillRect(px, py, ww, 1, bg) end
   end
-  local function vbar(px, py, ww, frac, col)
-    vfill(px, py, ww, C.screen)
-    vfill(px, py, math.floor(ww * math.max(0, math.min(1, frac)) + 0.5), col)
-  end
 
   local function pos(canvasX, canvasY) return vx0 + canvasX - 1 - R.panX, vy0 + canvasY - 1 - R.panY end
 
-  -- Connector: vertical drop from the parent's bottom, a horizontal bus on the
-  -- row above the children, and a + junction at the parent and each child.
-  -- (CC has no box-drawing glyphs, so | - + it is.)
+  -- Connector: a vertical | drop from the parent, then a horizontal - bus on the
+  -- row just above the children (a plain | when the child sits straight below).
   local function connect(pcx, pTopY, ccx, cTopY)
     local busY = cTopY - 1
     for yy = pTopY + TILE.h, busY - 1 do vput(pcx, yy, "|", C.dim, C.card) end
     local a, b = math.min(pcx, ccx), math.max(pcx, ccx)
-    for xx = a, b do vput(xx, busY, "-", C.dim, C.card) end
-    vput(pcx, busY, "+", C.dim, C.card)
-    vput(ccx, busY, "+", C.dim, C.card)
+    if a == b then
+      vput(a, busY, "|", C.dim, C.card)
+    else
+      for xx = a, b do vput(xx, busY, "-", C.dim, C.card) end
+    end
   end
 
   local half = math.floor(TILE.w / 2)
@@ -162,20 +159,15 @@ function M.draw(x, y, w, h, screen, d)
     local col = scolor(ds)
     local sx, sy = pos(e.x, e.y)
 
-    -- Left status chip + name; a bright available node is marked with a star.
-    vfill(sx, sy, 1, col)
-    local label = (ds == "available" and "* " or "") .. node.name
-    vput(sx + 2, sy, trunc(label, TILE.w - 2), col, C.card)
-
-    if ds == "active" or ds == "finished" then
-      local pctTxt = tostring(math.floor(node.pct * 100 + 0.5)) .. "%"
-      vbar(sx + 2, sy + 1, TILE.w - 2 - #pctTxt - 1, node.pct, col)
-      vput(sx + TILE.w - #pctTxt, sy + 1, pctTxt, C.dim, C.card)
+    -- Highlight the node itself: available is unlockable now, so fill it; the
+    -- others just colour the name by status.
+    if ds == "available" then
+      vfill(sx, sy, TILE.w, C.accent)
+      vput(sx, sy, trunc(node.name, TILE.w), colors.black, C.accent)
     else
-      vput(sx + 2, sy + 1, ds == "available" and "available" or "locked", col, C.card)
+      vput(sx, sy, trunc(node.name, TILE.w), col, C.card)
     end
 
-    -- Hitbox over the visible portion of the tile.
     local hx1, hy1 = math.max(sx, vx0), math.max(sy, vy0)
     local hx2, hy2 = math.min(sx + TILE.w - 1, vx1), math.min(sy + TILE.h - 1, vy1)
     if hx1 <= hx2 and hy1 <= hy2 then
