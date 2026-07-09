@@ -32,6 +32,7 @@ function M.new(integrator)
       orders    = g(function() return c.getWorkOrders() end, {}),
       visitors  = g(function() return c.getVisitors() end, {}),
       requests  = g(function() return c.getRequests() end, {}),
+      research  = g(function() return c.getResearch() end, {}),
       stats = {
         name = g(c.getColonyName, "?"), id = g(c.getColonyID, "?"),
         happiness = g(c.getHappiness, 0),

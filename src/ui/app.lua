@@ -295,6 +295,19 @@ function M.start(cfgModule)
     end
   end)
 
+  -- Smooth scan-countdown progress bar: finer than the 1s tick so it animates.
+  -- Only updates a native Basalt ProgressBar property (cheap; no full redraw).
+  basalt.schedule(function()
+    while true do
+      sleep(0.25)
+      if not loading then
+        local interval = config.refreshSeconds or 5
+        local frac = (os.epoch("utc") - state.armAt) / 1000 / interval
+        for _, s in ipairs(screens) do layout.updateScanBar(s, frac) end
+      end
+    end
+  end)
+
   -- While a suggestion modal is open the full rescan is paused (so the list
   -- doesn't churn under it), but the citizen/visitor it points at keeps MOVING.
   -- Poll just their live position and update the modal's location label in place.

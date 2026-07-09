@@ -19,6 +19,7 @@ local engine        = require("ui.layout.engine")
 local modalCommon   = require("ui.modals.common")
 local applyModal    = require("ui.modals.apply")
 local sectionsModal = require("ui.modals.sections")
+local researchModal = require("ui.modals.research")
 local C = theme.C
 
 local SECTIONS = {
@@ -29,6 +30,7 @@ local SECTIONS = {
   requests  = require("ui.sections.requests"),
   legend    = require("ui.sections.legend"),
   jobskills = require("ui.sections.jobskills"),
+  research  = require("ui.sections.research"),
 }
 -- Section order + geometry live in the pure engine; SECTIONS here maps each id
 -- to its draw module (the Basalt/draw side).
@@ -111,6 +113,15 @@ function M.buildScreen(screen, env)
     routeClick(fd:getWindow(), screen.W, 1, screen.footerButtons, x, y, screen)
     return true
   end)
+
+  -- Native Basalt progress bar for the scan countdown, in the footer gap left of
+  -- the EDIT button. Driven by M.updateScanBar from the app's fine-grained loop.
+  local barW = math.min(14, screen.W - 20)
+  if barW >= 4 then
+    screen.scanBar = ff:addProgressBar({ x = screen.W - 3 - barW, y = 1,
+      width = barW, height = 1, progress = 0, direction = "right" })
+    screen.scanBar.set("z", 30)
+  end
 
   -- Native Basalt modal (real widgets) for BOTH the suggestion popup and the
   -- SECTIONS toggle overlay. Full-screen so it blocks taps to the sections
@@ -195,10 +206,10 @@ local function drawFooter(screen, data, state, hooks)
   local W = screen.W
   draw.fillRect(1, 1, W, 1, C.cardTitle)
 
-  -- Left: colony / theme / countdown info.
-  local info = string.format("%s #%s  %s  %02ds",
+  -- Left: colony / theme info.
+  local info = string.format("%s #%s  %s",
     tostring(data and data.name or "?"), tostring(data and data.id or "?"),
-    theme.THEMES[state.theme] and state.theme or "?", state.countdown)
+    theme.THEMES[state.theme] and state.theme or "?")
   draw.put(2, 1, info, C.dim, C.cardTitle)
 
   -- Right: small EDIT icon; THEME + SECTIONS appear (to its left) only in EDIT.
@@ -223,6 +234,18 @@ local modalDeps = { SECTION_ORDER = SECTION_ORDER, SECTIONS = SECTIONS,
 
 -- Track a moving citizen in the open apply modal (called by the app poll loop).
 M.refreshModalLocation = applyModal.refreshLocation
+
+-- Update the native scan progress bar (0..1). Called frequently by the app's
+-- fine-grained loop; hidden in EDIT mode so the THEME/SECTIONS buttons show.
+function M.updateScanBar(screen, frac)
+  local b = screen.scanBar
+  if not b then return end
+  if screen.edit then b.set("visible", false); return end
+  b.set("visible", true)
+  b.set("background", C.screen)
+  b.set("progressColor", C.good)
+  b.set("progress", math.max(0, math.min(100, math.floor((frac or 0) * 100 + 0.5))))
+end
 
 function M.render(screen, data, state, hooks)
   for _, id in ipairs(SECTION_ORDER) do
@@ -251,6 +274,8 @@ function M.render(screen, data, state, hooks)
     applyModal.show(screen, screen.modal.sug)
   elseif screen.modal and screen.modal.kind == "sections" then
     sectionsModal.show(screen, hooks, modalDeps)
+  elseif screen.modal and screen.modal.kind == "research" then
+    researchModal.show(screen, screen.modal.node)
   else
     modalCommon.hide(screen)
   end

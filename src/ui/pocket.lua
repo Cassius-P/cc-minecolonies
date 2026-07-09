@@ -114,8 +114,16 @@ function M.start(cfgModule)
   rc.open(); rc.serve(basalt)
   if not remote.validChannel(config.channel) then showPrompt() end
 
-  -- Animate the loader dots while disconnected.
-  basalt.schedule(function() while true do loader.tick(); sleep(0.3) end end)
+  -- Animate the loader dots while disconnected + the scan progress bar (time
+  -- since the last snapshot, over the polling interval).
+  basalt.schedule(function()
+    while true do
+      loader.tick()
+      local interval = config.refreshSeconds or 5
+      layout.updateScanBar(screen, (os.epoch("utc") - state.armAt) / 1000 / interval)
+      sleep(0.3)
+    end
+  end)
 
   basalt.run()
   theme.restore(screens)

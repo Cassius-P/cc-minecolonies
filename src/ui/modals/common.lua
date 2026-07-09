@@ -33,6 +33,7 @@ function M.hide(screen)
     nmf.set("enabled", false)
   end
   screen.nmodalSug = nil
+  screen.nmodalNode = nil
   screen.nmodalKind = nil
   screen.nmodalEntity = nil
   screen.nmodalEntityLabel = nil

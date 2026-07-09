@@ -24,6 +24,7 @@ function M.new(config)
 
   local s = {
     data = nil, msg = "", countdown = refresh(), needScan = false,
+    armAt = os.epoch("utc"),   -- start of the current scan interval (footer progress bar)
     update = nil, checking = false, checkFailed = false, pendingInstall = false,
     dumping = false, dumpLink = nil, dumpError = nil,
     booting = true, cancelBoot = false,
@@ -32,10 +33,10 @@ function M.new(config)
 
   -- Colony scan ----------------------------------------------------------
   function s.setData(data, msg)
-    s.data, s.msg, s.needScan, s.countdown = data, msg, false, refresh()
+    s.data, s.msg, s.needScan, s.countdown, s.armAt = data, msg, false, refresh(), os.epoch("utc")
   end
   function s.setScanError(msg)
-    s.msg, s.needScan, s.countdown = msg, false, refresh()
+    s.msg, s.needScan, s.countdown, s.armAt = msg, false, refresh(), os.epoch("utc")
   end
   function s.markScan() s.needScan = true end
   function s.tick() s.countdown = s.countdown - 1; return s.countdown end

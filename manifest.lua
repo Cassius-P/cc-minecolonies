@@ -9,7 +9,7 @@
 ----------------------------------------------------------------------------
 
 return {
-  version = "3.70",
+  version = "3.71",
 
   files = {
     -- entry + config + vendored dependency
@@ -48,6 +48,7 @@ return {
     { src = "src/colony/suggest/recruit.lua",  dst = "/colony/suggest/recruit.lua" },
     { src = "src/colony/advisor.lua",  dst = "/colony/advisor.lua" },
     { src = "src/colony/requests.lua", dst = "/colony/requests.lua" },
+    { src = "src/colony/research.lua", dst = "/colony/research.lua" },
     { src = "src/colony/shape.lua",    dst = "/colony/shape.lua" },
     { src = "src/colony/api.lua",      dst = "/colony/api.lua" },
     -- storage
@@ -68,6 +69,7 @@ return {
     { src = "src/ui/modals/common.lua",   dst = "/ui/modals/common.lua" },
     { src = "src/ui/modals/apply.lua",    dst = "/ui/modals/apply.lua" },
     { src = "src/ui/modals/sections.lua", dst = "/ui/modals/sections.lua" },
+    { src = "src/ui/modals/research.lua", dst = "/ui/modals/research.lua" },
     -- admin view (one module per tab)
     { src = "src/ui/admin/diff.lua",        dst = "/ui/admin/diff.lua" },
     { src = "src/ui/admin/status.lua",      dst = "/ui/admin/status.lua" },
@@ -84,6 +86,7 @@ return {
     { src = "src/ui/sections/requests.lua",  dst = "/ui/sections/requests.lua" },
     { src = "src/ui/sections/legend.lua",    dst = "/ui/sections/legend.lua" },
     { src = "src/ui/sections/jobskills.lua", dst = "/ui/sections/jobskills.lua" },
+    { src = "src/ui/sections/research.lua",  dst = "/ui/sections/research.lua" },
   },
 
   -- Targets never clobbered on update (user config / local edits survive).

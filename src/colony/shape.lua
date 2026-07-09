@@ -20,6 +20,7 @@ local util     = require("common.util")
 local skills   = require("colony.skills")
 local advisor  = require("colony.advisor")
 local requests = require("colony.requests")
+local research = require("colony.research")
 local index    = require("colony.roster_index")
 
 local M = {}
@@ -89,6 +90,8 @@ function M.buildData(snapshot, config, caps, log)
       end
     end
   end
+
+  d.research = research.normalize(snapshot.research)
 
   d.bridgePresent  = caps.bridge and true or false
   d.storagePresent = caps.storage and true or false

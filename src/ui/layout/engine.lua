@@ -9,9 +9,9 @@
 
 local M = {}
 
-M.SECTION_ORDER = { "status", "workforce", "workers", "orders", "requests", "legend", "jobskills" }
+M.SECTION_ORDER = { "status", "workforce", "workers", "orders", "requests", "legend", "jobskills", "research" }
 -- Sections hidden unless explicitly enabled (enabled[id] == true).
-M.DEFAULT_HIDDEN = { jobskills = true }
+M.DEFAULT_HIDDEN = { jobskills = true, research = true }
 
 local VALID = {}
 for _, id in ipairs(M.SECTION_ORDER) do VALID[id] = true end
