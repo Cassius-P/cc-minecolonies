@@ -31,15 +31,17 @@ local function reqsMet(node)
   return true
 end
 
--- Recursively normalize a node; `parentFinished` gates the `available` state.
-local function normNode(n, parentFinished)
+-- Recursively normalize a node. `available` = not started with every listed
+-- requirement fulfilled (the integrator's own can-I-start-this signal); a missing
+-- prerequisite shows up there as an unfulfilled requirement, so `locked`.
+local function normNode(n)
   local status = tostring(n.status or "NOT_STARTED")
   local dstatus
   if status == "FINISHED" then
     dstatus = "finished"
   elseif status == "IN_PROGRESS" then
     dstatus = "active"
-  elseif reqsMet(n) and parentFinished then
+  elseif reqsMet(n) then
     dstatus = "available"
   else
     dstatus = "locked"
@@ -61,9 +63,8 @@ local function normNode(n, parentFinished)
     requirements = n.requirements or {},
     children = {},
   }
-  local finished = dstatus == "finished"
   for _, c in ipairs(n.children or {}) do
-    node.children[#node.children + 1] = normNode(c, finished)
+    node.children[#node.children + 1] = normNode(c)
   end
   return node
 end
@@ -79,7 +80,7 @@ function M.normalize(raw)
   for _, k in ipairs(keys) do
     local roots = {}
     for _, n in ipairs(raw[k] or {}) do
-      roots[#roots + 1] = normNode(n, true)   -- roots have no parent -> requirements test only
+      roots[#roots + 1] = normNode(n)
     end
     branches[#branches + 1] = { key = k, label = cleanLabel(k), roots = roots }
   end

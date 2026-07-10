@@ -98,9 +98,9 @@ function M.draw(x, y, w, h, screen, d)
   local branch = branches[R.branchIdx]
 
   drawTabs(cx, cy, cw, branches, R)
-  drawControls(cx, cy + 1, R, TILE.w + TILE.gapX, TILE.h + TILE.gapY)
+  -- Blank spacer row (cy+1) between the tabs and the controls.
+  drawControls(cx, cy + 2, R, TILE.w + TILE.gapX, TILE.h + TILE.gapY)
 
-  -- Blank spacer row (cy+2) between the controls and the tree.
   local vx0, vy0 = cx, cy + 3
   local vw, vh = cw, ch - 3
   if vh < 1 then return end
@@ -131,16 +131,19 @@ function M.draw(x, y, w, h, screen, d)
 
   local function pos(canvasX, canvasY) return vx0 + canvasX - 1 - R.panX, vy0 + canvasY - 1 - R.panY end
 
-  -- Connector: a vertical | drop from the parent, then a horizontal - bus on the
-  -- row just above the children (a plain | when the child sits straight below).
+  -- Connector: a vertical drop from the parent, then a horizontal bus on the row
+  -- just above the children (a plain vertical when the child sits straight below).
+  -- CC has no Unicode box-drawing; \149 (vertical) and \131 (horizontal) are the
+  -- native teletext line glyphs Basalt itself uses for borders.
+  local VLINE, HLINE = "\149", "\131"
   local function connect(pcx, pTopY, ccx, cTopY)
     local busY = cTopY - 1
-    for yy = pTopY + TILE.h, busY - 1 do vput(pcx, yy, "|", C.dim, C.card) end
+    for yy = pTopY + TILE.h, busY - 1 do vput(pcx, yy, VLINE, C.dim, C.card) end
     local a, b = math.min(pcx, ccx), math.max(pcx, ccx)
     if a == b then
-      vput(a, busY, "|", C.dim, C.card)
+      vput(a, busY, VLINE, C.dim, C.card)
     else
-      for xx = a, b do vput(xx, busY, "-", C.dim, C.card) end
+      for xx = a, b do vput(xx, busY, HLINE, C.dim, C.card) end
     end
   end
 
