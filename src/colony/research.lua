@@ -83,8 +83,25 @@ function M.normalize(raw)
     for _, n in ipairs(raw[k] or {}) do
       roots[#roots + 1] = normNode(n, true)   -- a branch's primary research has no parent
     end
-    branches[#branches + 1] = { key = k, label = cleanLabel(k), roots = roots }
+    -- Skip branches with no visible research (e.g. MineColonies' "unlockable"
+    -- branch, whose entries are hidden -> the integrator returns an empty list).
+    if #roots > 0 then
+      branches[#branches + 1] = { key = k, label = cleanLabel(k), roots = roots }
+    end
   end
+
+  -- Synthetic first tab: a flat list of every startable ("available") research
+  -- across all branches, rendered as a detail grid rather than a tree.
+  local avail = {}
+  local function gather(node)
+    if node.dstatus == "available" then avail[#avail + 1] = node end
+    for _, c in ipairs(node.children) do gather(c) end
+  end
+  for _, b in ipairs(branches) do for _, r in ipairs(b.roots) do gather(r) end end
+  if #avail > 0 then
+    table.insert(branches, 1, { key = "_unlockable", label = "Unlockable", grid = true, nodes = avail, roots = {} })
+  end
+
   return branches
 end
 

@@ -21,13 +21,18 @@ local raw = {
 
 local branches = research.normalize(raw)
 
+t.case("normalize: synthetic Unlockable grid tab first")
+t.eq(#branches, 3, "unlockable + civilian + combat")
+t.truthy(branches[1].grid, "first tab is the grid")
+t.eq(branches[1].label, "Unlockable", "grid tab label")
+t.eq(#branches[1].nodes, 2, "two available nodes gathered (v:root + c:avail)")
+
 t.case("normalize: ordered, cleaned branches")
-t.eq(#branches, 2, "branch count")
-t.eq(branches[1].label, "Civilian", "first branch label (sorted: civilian < combat)")
-t.eq(branches[2].label, "Combat", "second branch label")
+t.eq(branches[2].label, "Civilian", "sorted: civilian < combat")
+t.eq(branches[3].label, "Combat", "second real branch")
 
 t.case("normalize: tree intact")
-local combat = branches[2].roots[1]
+local combat = branches[3].roots[1]
 t.eq(#combat.children, 3, "combat root children")
 
 t.case("normalize: dstatus derivation")
@@ -35,14 +40,14 @@ t.eq(combat.dstatus, "finished", "finished root")
 t.eq(combat.children[1].dstatus, "active", "in-progress -> active")
 t.eq(combat.children[2].dstatus, "available", "not-started + reqs met + parent finished -> available")
 t.eq(combat.children[3].dstatus, "locked", "not-started + unmet req -> locked")
-t.eq(branches[1].roots[1].dstatus, "available", "root with empty reqs -> available")
+t.eq(branches[2].roots[1].dstatus, "available", "root with empty reqs -> available")
 
 t.case("normalize: progress pct")
 t.near(combat.children[1].pct, 0.45, 1e-6, "45/100")
 t.eq(combat.pct, 1, "finished pct = 1")
 
 t.case("layout: vertical tidy tree")
-local lay = research.layout(branches[2], { w = 8, h = 1, gapX = 1, gapY = 1 })
+local lay = research.layout(branches[3], { w = 8, h = 1, gapX = 1, gapY = 1 })
 -- one entry per node (root + 3 children)
 t.eq(#lay.nodes, 4, "node count")
 
@@ -71,3 +76,19 @@ t.eq(lay.canvasH, 3, "2 tiers * 2 - gap")
 t.case("normalize: empty/nil safe")
 t.eq(#research.normalize(nil), 0, "nil -> empty")
 t.eq(#research.normalize({}), 0, "empty -> empty")
+
+t.case("normalize: drop empty branches; synthetic Unlockable when available exists")
+local dropped = research.normalize({
+  ["minecolonies:unlockable"] = {},
+  ["minecolonies:combat"] = { { id = "c", name = "C", status = "NOT_STARTED", requirements = {} } },
+})
+t.eq(#dropped, 2, "empty branch dropped, grid tab added")
+t.truthy(dropped[1].grid, "grid tab first")
+t.eq(dropped[2].label, "Combat", "real empty 'unlockable' branch dropped")
+
+t.case("normalize: no synthetic tab when nothing available")
+local none = research.normalize({
+  ["minecolonies:combat"] = { { id = "c", name = "C", status = "FINISHED", requirements = {} } },
+})
+t.eq(#none, 1, "only the real branch")
+t.eq(none[1].label, "Combat", "no grid tab without available research")

@@ -27,6 +27,11 @@ local function scolor(ds)
   else return C.dim end
 end
 
+local function costName(c)
+  local it = c.validItems and c.validItems[1]
+  return it and (it.displayName or it.name) or "?"
+end
+
 local function clampPan(v, canvas, view)
   local maxp = math.max(0, canvas - view)
   if v < 0 then return 0 elseif v > maxp then return maxp else return v end
@@ -102,17 +107,15 @@ function M.draw(x, y, w, h, screen, d)
   local branch = branches[R.branchIdx]
 
   drawTabs(cx, cy, cw, branches, R)
-  -- Tree viewport sits between the tabs (top) and the D-pad cross (bottom 3 rows).
-  drawCross(cx, cy, cw, ch, R, TILE.w + TILE.gapX, TILE.h + TILE.gapY)
+  local isGrid = branch.grid
+  -- Tree/grid viewport sits between the tabs (top) and the D-pad (bottom 3 rows).
+  -- On the grid the D-pad only scrolls vertically (a few rows at a time).
+  drawCross(cx, cy, cw, ch, R, isGrid and 0 or (TILE.w + TILE.gapX), isGrid and 3 or (TILE.h + TILE.gapY))
 
   local vx0, vy0 = cx, cy + 2
   local vw, vh = cw, ch - 2 - 4               -- leave the bottom 3 rows + 1 gap for the cross
   if vh < 1 then return end
   local vx1, vy1 = vx0 + vw - 1, vy0 + vh - 1
-
-  local lay = research.layout(branch, TILE)
-  R.panX = clampPan(R.panX, lay.canvasW, vw)
-  R.panY = clampPan(R.panY, lay.canvasH, vh)
 
   -- Viewport-clipped primitives (draw.put only clips to the whole window, which
   -- would let scrolled content paint over the tab/control rows).
@@ -132,6 +135,45 @@ function M.draw(x, y, w, h, screen, d)
     if ww > room then ww = room end
     if ww > 0 then draw.fillRect(px, py, ww, 1, bg) end
   end
+
+  -- Unlockable grid: two columns (node | effects & cost), one block per startable
+  -- research, vertically scrolled by the D-pad. No modal -- details are inline.
+  if isGrid then
+    local rows = {}
+    for _, node in ipairs(branch.nodes) do
+      local desc = {}
+      for _, ef in ipairs(node.effects) do desc[#desc + 1] = { "+ " .. tostring(ef), C.good } end
+      for _, c in ipairs(node.cost) do desc[#desc + 1] = { (c.count or 1) .. " x " .. costName(c), C.warn } end
+      if #desc == 0 then desc[1] = { "(no listed effect)", C.dim } end
+      for i = 1, #desc do rows[#rows + 1] = { name = (i == 1) and node.name or nil, line = desc[i] } end
+      rows[#rows + 1] = { gap = true }
+    end
+
+    R.panX = 0
+    R.panY = clampPan(R.panY, #rows, vh)
+    local leftW = math.min(20, math.floor(vw * 0.45))
+    local rx = vx0 + leftW + 1
+    for i = 1, vh do
+      local r = rows[i + R.panY]
+      if not r then break end
+      local ry = vy0 + i - 1
+      if not r.gap then
+        if r.name then
+          vfill(vx0, ry, leftW, C.accent)
+          local nm = trunc(r.name, leftW)
+          vput(vx0 + math.floor((leftW - #nm) / 2), ry, nm, colors.black, C.accent)
+        else
+          vfill(vx0, ry, 1, C.accent)                    -- grouping bar for wrapped detail rows
+        end
+        vput(rx, ry, trunc(r.line[1], vx1 - rx + 1), r.line[2], C.card)
+      end
+    end
+    return
+  end
+
+  local lay = research.layout(branch, TILE)
+  R.panX = clampPan(R.panX, lay.canvasW, vw)
+  R.panY = clampPan(R.panY, lay.canvasH, vh)
 
   local function pos(canvasX, canvasY) return vx0 + canvasX - 1 - R.panX, vy0 + canvasY - 1 - R.panY end
 
