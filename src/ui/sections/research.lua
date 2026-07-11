@@ -77,13 +77,17 @@ local function drawTabs(cx, cy, cw, branches, R)
   end
 end
 
--- Pan-only controls (left / right / up / down).
-local function drawControls(cx, cy, R, stepX, stepY)
-  local px = cx
-  px = draw.button(px, cy, "\27", C.btn, C.btnText, function() R.panX = R.panX - stepX end) + 1
-  px = draw.button(px, cy, "\26", C.btn, C.btnText, function() R.panX = R.panX + stepX end) + 2
-  px = draw.button(px, cy, "\24", C.btn, C.btnText, function() R.panY = R.panY - stepY end) + 1
-  draw.button(px, cy, "\25", C.btn, C.btnText, function() R.panY = R.panY + stepY end)
+-- Pan controls as a centred D-pad cross on the bottom three rows of the card:
+--       [^]
+--    [<]   [>]
+--       [v]
+local function drawCross(cx, cy, cw, ch, R, stepX, stepY)
+  local mid = cx + math.floor(cw / 2)     -- centre column
+  local top = cy + ch - 3
+  draw.button(mid - 1, top,     "\24", C.btn, C.btnText, function() R.panY = R.panY - stepY end)
+  draw.button(mid - 4, top + 1, "\27", C.btn, C.btnText, function() R.panX = R.panX - stepX end)
+  draw.button(mid + 2, top + 1, "\26", C.btn, C.btnText, function() R.panX = R.panX + stepX end)
+  draw.button(mid - 1, top + 2, "\25", C.btn, C.btnText, function() R.panY = R.panY + stepY end)
 end
 
 function M.draw(x, y, w, h, screen, d)
@@ -98,11 +102,11 @@ function M.draw(x, y, w, h, screen, d)
   local branch = branches[R.branchIdx]
 
   drawTabs(cx, cy, cw, branches, R)
-  -- Blank spacer row (cy+1) between the tabs and the controls.
-  drawControls(cx, cy + 2, R, TILE.w + TILE.gapX, TILE.h + TILE.gapY)
+  -- Tree viewport sits between the tabs (top) and the D-pad cross (bottom 3 rows).
+  drawCross(cx, cy, cw, ch, R, TILE.w + TILE.gapX, TILE.h + TILE.gapY)
 
-  local vx0, vy0 = cx, cy + 3
-  local vw, vh = cw, ch - 3
+  local vx0, vy0 = cx, cy + 2
+  local vw, vh = cw, ch - 2 - 4               -- leave the bottom 3 rows + 1 gap for the cross
   if vh < 1 then return end
   local vx1, vy1 = vx0 + vw - 1, vy0 + vh - 1
 
