@@ -31,17 +31,17 @@ local function reqsMet(node)
   return true
 end
 
--- Recursively normalize a node. `available` = not started with every listed
--- requirement fulfilled (the integrator's own can-I-start-this signal); a missing
--- prerequisite shows up there as an unfulfilled requirement, so `locked`.
-local function normNode(n)
+-- Recursively normalize a node. `available` = startable now: not started, its
+-- parent research finished (the structural prerequisite -- MineColonies does NOT
+-- list the parent among `requirements`), AND every listed requirement fulfilled.
+local function normNode(n, parentFinished)
   local status = tostring(n.status or "NOT_STARTED")
   local dstatus
   if status == "FINISHED" then
     dstatus = "finished"
   elseif status == "IN_PROGRESS" then
     dstatus = "active"
-  elseif reqsMet(n) then
+  elseif parentFinished and reqsMet(n) then
     dstatus = "available"
   else
     dstatus = "locked"
@@ -63,8 +63,9 @@ local function normNode(n)
     requirements = n.requirements or {},
     children = {},
   }
+  local finished = dstatus == "finished"
   for _, c in ipairs(n.children or {}) do
-    node.children[#node.children + 1] = normNode(c)
+    node.children[#node.children + 1] = normNode(c, finished)
   end
   return node
 end
@@ -80,7 +81,7 @@ function M.normalize(raw)
   for _, k in ipairs(keys) do
     local roots = {}
     for _, n in ipairs(raw[k] or {}) do
-      roots[#roots + 1] = normNode(n)
+      roots[#roots + 1] = normNode(n, true)   -- a branch's primary research has no parent
     end
     branches[#branches + 1] = { key = k, label = cleanLabel(k), roots = roots }
   end
