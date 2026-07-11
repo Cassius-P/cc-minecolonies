@@ -16,9 +16,10 @@ local C = theme.C
 local M = {}
 M.title = "Research"
 
--- One fixed, readable single-row tile (just the node name, coloured by status)
--- with generous gaps so the connector lines have room to breathe.
-local TILE = { w = 18, h = 1, gapX = 3, gapY = 2 }
+-- Fixed node tile: the coloured background is taller/wider than the single line
+-- of text, so the name sits padded inside its status colour. Generous gaps give
+-- the connector lines room.
+local TILE = { w = 20, h = 3, gapX = 3, gapY = 2 }
 
 local function scolor(ds)
   if ds == "finished" then return C.good
@@ -142,6 +143,7 @@ function M.draw(x, y, w, h, screen, d)
     local rows = {}
     for _, node in ipairs(branch.nodes) do
       local desc = {}
+      if node.cat then desc[#desc + 1] = { node.cat, C.accent2 } end
       for _, ef in ipairs(node.effects) do desc[#desc + 1] = { "+ " .. tostring(ef), C.good } end
       for _, c in ipairs(node.cost) do desc[#desc + 1] = { (c.count or 1) .. " x " .. costName(c), C.warn } end
       if #desc == 0 then desc[1] = { "(no listed effect)", C.dim } end
@@ -208,11 +210,11 @@ function M.draw(x, y, w, h, screen, d)
     local col = scolor(ds)
     local sx, sy = pos(e.x, e.y)
 
-    -- Highlight every node with a status-coloured background + centred,
-    -- contrasting text.
-    vfill(sx, sy, TILE.w, col)
-    local nm = trunc(node.name, TILE.w)
-    vput(sx + math.floor((TILE.w - #nm) / 2), sy, nm, colors.black, col)
+    -- Status-coloured background, larger than the text, with the name centred
+    -- (both axes) and contrasting.
+    for r = 0, TILE.h - 1 do vfill(sx, sy + r, TILE.w, col) end
+    local nm = trunc(node.name, TILE.w - 2)
+    vput(sx + math.floor((TILE.w - #nm) / 2), sy + math.floor((TILE.h - 1) / 2), nm, colors.black, col)
 
     local hx1, hy1 = math.max(sx, vx0), math.max(sy, vy0)
     local hx2, hy2 = math.min(sx + TILE.w - 1, vx1), math.min(sy + TILE.h - 1, vy1)

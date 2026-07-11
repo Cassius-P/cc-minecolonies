@@ -93,13 +93,16 @@ function M.normalize(raw)
   -- Synthetic first tab: a flat list of every startable ("available") research
   -- across all branches, rendered as a detail grid rather than a tree.
   local avail = {}
-  local function gather(node)
-    if node.dstatus == "available" then avail[#avail + 1] = node end
-    for _, c in ipairs(node.children) do gather(c) end
+  local function gather(node, cat)
+    if node.dstatus == "available" then node.cat = cat; avail[#avail + 1] = node end
+    for _, c in ipairs(node.children) do gather(c, cat) end
   end
-  for _, b in ipairs(branches) do for _, r in ipairs(b.roots) do gather(r) end end
+  for _, b in ipairs(branches) do for _, r in ipairs(b.roots) do gather(r, b.label) end end
   if #avail > 0 then
-    table.insert(branches, 1, { key = "_unlockable", label = "Unlockable", grid = true, nodes = avail, roots = {} })
+    table.insert(branches, 1, {
+      key = "_unlockable", label = ("Unlockable (%d)"):format(#avail),
+      grid = true, nodes = avail, roots = {},
+    })
   end
 
   return branches
