@@ -85,6 +85,36 @@ do
   t.eq(list[4].displayColor, "missing", "not in system / uncraftable")
 end
 
+t.case("equipment prefers vanilla from the accept list over a modded one")
+do
+  local nolog = { safeCall = function(fn) return (pcall(fn)) end, write = function() end }
+  local exported
+  local stock = {
+    ["mekanism:hazmat_pants"]    = { amount = 5, isCraftable = true, fingerprint = "fp_hazmat" },
+    ["minecraft:iron_leggings"]  = { amount = 5, isCraftable = true, fingerprint = "fp_iron" },
+  }
+  local raw = {
+    getItem = function(f)
+      local s = stock[f.name]
+      if not s then return nil end
+      return { amount = s.amount, isCraftable = s.isCraftable, fingerprint = s.fingerprint }
+    end,
+    exportItemToPeripheral = function(f) exported = f.fingerprint; return 1 end,
+    isItemCrafting = function() return false end,
+    craftItem = function() return true end,
+  }
+  local ctx = {
+    bridge = bridgePort.new(raw, nolog), storage = "barrel", log = nolog,
+    config = { autofulfill = { enabled = true, craftMissing = true, equipment = true } },
+  }
+  -- items[] order lists the modded item first; orderAccept must still pick vanilla.
+  local item = { count = 1, equipment = true, equipPiece = "Leggings",
+    acceptNames = { "mekanism:hazmat_pants", "minecraft:iron_leggings" } }
+  fulfill.handle({ item }, ctx)
+  t.eq(exported, "fp_iron", "vanilla iron_leggings exported, not hazmat")
+  t.eq(item.displayColor, "filled")
+end
+
 t.case("equipment already in warehouse -> filled, no re-craft (loop guard)")
 do
   local nolog = { safeCall = function(fn) return (pcall(fn)) end, write = function() end }

@@ -39,6 +39,22 @@ do
   t.eq(ot[1].item_name, "minecraft:torch")
 end
 
+t.case("equipment stores the full accept list from items[]")
+do
+  local raw = {
+    { name = "Leggings", target = "Knight Billy", count = 1,
+      desc = "Leggings with minimal level: Leather and with maximal level: Iron",
+      items = {
+        { name = "mekanism:hazmat_pants", displayName = "[Hazmat Pants]" },
+        { name = "minecraft:iron_leggings", displayName = "[Iron Leggings]" },
+      } },
+  }
+  local eq = requests.categorize(raw)
+  t.eq(#eq[1].acceptNames, 2)
+  t.eq(eq[1].acceptNames[1], "mekanism:hazmat_pants")
+  t.eq(eq[1].acceptNames[2], "minecraft:iron_leggings")
+end
+
 t.case("domum block: type shown in the materials line")
 do
   local raw = {

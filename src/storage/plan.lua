@@ -43,6 +43,21 @@ function M.equipNames(item, af)
   return out
 end
 
+-- Order an equipment request's accepted item names vanilla-first (minecraft:*),
+-- then the rest, keeping each group's original order and dropping duplicates.
+-- Lets fulfill prefer a vanilla item over a modded one while still falling back.
+function M.orderAccept(names)
+  local van, rest, seen = {}, {}, {}
+  for _, n in ipairs(names or {}) do
+    if type(n) == "string" and not seen[n] then
+      seen[n] = true
+      if n:find("^minecraft:") then van[#van + 1] = n else rest[#rest + 1] = n end
+    end
+  end
+  for _, n in ipairs(rest) do van[#van + 1] = n end
+  return van
+end
+
 -- Count how many of `names` already sit in a warehouse `.list()` result (slot ->
 -- {name, count}). Equipment we exported but the colony hasn't collected yet
 -- lives here; without this, fulfill re-crafts every scan during delivery lag.

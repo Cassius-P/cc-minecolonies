@@ -47,6 +47,21 @@ do
   t.eq(plan.craftResultToken(false), "partial")
 end
 
+t.case("orderAccept puts vanilla first, keeps order, dedups")
+do
+  local out = plan.orderAccept({
+    "mekanism:hazmat_pants", "minecraft:leather_leggings",
+    "the_bumblezone:honey_bee_leggings_1", "minecraft:iron_leggings",
+    "minecraft:leather_leggings",  -- dup
+  })
+  t.eq(out[1], "minecraft:leather_leggings", "vanilla first, request order")
+  t.eq(out[2], "minecraft:iron_leggings")
+  t.eq(out[3], "mekanism:hazmat_pants", "modded after vanilla, request order")
+  t.eq(out[4], "the_bumblezone:honey_bee_leggings_1")
+  t.eq(#out, 4, "duplicate dropped")
+  t.eq(#plan.orderAccept(nil), 0, "nil safe")
+end
+
 t.case("warehouseHave sums matching names across a warehouse list")
 do
   local list = {

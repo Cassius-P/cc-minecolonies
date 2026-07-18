@@ -106,6 +106,11 @@ function M.categorize(rawRequests, log)
         base.maxLevel = maxL
         base.equipPiece = bi
         base.displayLabel = bi .. " (" .. rangeText(minL, maxL) .. ")"
+        local accept = {}
+        for _, it in ipairs(req.items) do
+          if it and it.name then accept[#accept + 1] = it.name end
+        end
+        base.acceptNames = accept  -- colony's real accept list; fulfill orders it vanilla-first
         equipment[#equipment + 1] = base
       else
         local dbase, dmats = domumInfo(req.items[1])  -- nil for non-domum

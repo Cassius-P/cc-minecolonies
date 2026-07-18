@@ -19,20 +19,34 @@ local M = {}
 -- Exposed for unit tests (pure, delegates to plan).
 M.equipNames = plan.equipNames
 
+-- Equipment candidate item ids in priority order: the colony's own accept list
+-- (vanilla-first), else the synthesized tier range when no accept list is present.
+local function equipCandidateNames(item, af)
+  if item.acceptNames and #item.acceptNames > 0 then return plan.orderAccept(item.acceptNames) end
+  return plan.equipNames(item, af)
+end
+
 -- Resolve a request to fingerprint-based candidates via the bridge port.
-local function resolve(bridge, item, af)
+-- Equipment is resolved by NAME (not the request fingerprint, which hashes
+-- differently from the stored stack); the by-name getItem returns the correct
+-- storage-side fingerprint to export. Stops once a stocked AND a craftable
+-- candidate are found (accept lists can be ~30 items -> avoid that many calls).
+local function resolve(bridge, item, names)
   local out = {}
-  if item.equipment then
-    -- Resolve equipment by material-name range, NOT the request's fingerprint:
-    -- the request-side item fingerprint hashes differently from the stored
-    -- stack, so a fingerprint lookup misses items that are in stock/craftable.
-    -- The by-name getItem returns the correct storage-side fingerprint to export.
-    for _, name in ipairs(plan.equipNames(item, af)) do
-      local c = bridge.getItem({ name = name }); if c then out[#out + 1] = c end
-    end
-  else
+  if not item.equipment then
     local base = item.fingerprint and { fingerprint = item.fingerprint } or { name = item.item_name }
     local c = bridge.getItem(base); if c then out[#out + 1] = c end
+    return out
+  end
+  local haveStocked, haveCraft = false, false
+  for _, name in ipairs(names) do
+    local c = bridge.getItem({ name = name })
+    if c then
+      out[#out + 1] = c
+      if c.amount > 0 then haveStocked = true end
+      if c.craftable then haveCraft = true end
+      if haveStocked and haveCraft then break end
+    end
   end
   return out
 end
@@ -53,7 +67,8 @@ function M.handle(list, ctx)
     -- Equipment we already exported can sit in the warehouse for several scans
     -- before a courier collects it (unlike stack deliverables). Count it so we
     -- don't re-export/re-craft the same tool every scan during delivery lag.
-    local have = item.equipment and plan.warehouseHave(ctx.warehouse, plan.equipNames(item, af)) or 0
+    local names = item.equipment and equipCandidateNames(item, af) or nil
+    local have = names and plan.warehouseHave(ctx.warehouse, names) or 0
     if have >= item.count then
       item.provided = item.count
       item.displayColor = "filled"
@@ -61,7 +76,7 @@ function M.handle(list, ctx)
     end
     local need = item.count - have
 
-    local cands = resolve(bridge, item, af)
+    local cands = resolve(bridge, item, names)
     local stocked, craftFilter = plan.selectCandidates(cands)
 
     -- Pass 1: export an in-stock candidate (exact, by fingerprint).
