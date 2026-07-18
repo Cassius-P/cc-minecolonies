@@ -84,3 +84,26 @@ do
   t.eq(list[3].displayColor, "crafting", "partial then craft queued")
   t.eq(list[4].displayColor, "missing", "not in system / uncraftable")
 end
+
+t.case("equipment already in warehouse -> filled, no re-craft (loop guard)")
+do
+  local nolog = { safeCall = function(fn) return (pcall(fn)) end, write = function() end }
+  local crafted = false
+  local raw = {
+    getItem = function() return nil end,           -- nothing in ME
+    exportItemToPeripheral = function() return 0 end,
+    isItemCrafting = function() return false end,
+    craftItem = function() crafted = true; return true end,
+  }
+  local ctx = {
+    bridge = bridgePort.new(raw, nolog), storage = "barrel", log = nolog,
+    warehouse = { { name = "minecraft:iron_shovel", count = 1 } },  -- already exported, awaiting courier
+    config = { autofulfill = { enabled = true, craftMissing = true, equipment = true,
+      equipmentLevel = "Iron" } },
+  }
+  local item = { item_name = "minecraft:iron_shovel", count = 1, equipment = true,
+    equipPiece = "Shovel", minLevel = "Iron", maxLevel = "Iron" }
+  fulfill.handle({ item }, ctx)
+  t.eq(item.displayColor, "filled", "warehouse stock satisfies it")
+  t.falsy(crafted, "no craft issued while tool sits in warehouse")
+end

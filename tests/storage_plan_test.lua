@@ -47,6 +47,19 @@ do
   t.eq(plan.craftResultToken(false), "partial")
 end
 
+t.case("warehouseHave sums matching names across a warehouse list")
+do
+  local list = {
+    [1] = { name = "minecraft:iron_shovel", count = 2 },
+    [3] = { name = "minecraft:diamond_shovel", count = 1 },
+    [4] = { name = "minecraft:stone", count = 64 },
+  }
+  t.eq(plan.warehouseHave(list, { "minecraft:iron_shovel", "minecraft:diamond_shovel" }), 3)
+  t.eq(plan.warehouseHave(list, { "minecraft:iron_axe" }), 0, "no match")
+  t.eq(plan.warehouseHave(nil, { "x" }), 0, "nil list")
+  t.eq(plan.warehouseHave(list, nil), 0, "nil names")
+end
+
 t.case("withCount clones filter and adds count")
 do
   local f = plan.withCount({ fingerprint = "fp" }, 7)

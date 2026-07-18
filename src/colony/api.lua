@@ -33,7 +33,9 @@ function M.gather(ctx)
   -- CCxM auto-fulfill: effectful. Mutates each request item's displayColor in
   -- place (shared with d.requests) via the ME/RS bridge port. Order: eq, bd, ot.
   if d.autofulfill.canAuto then
-    local fctx = { bridge = bridgePort.new(bridge, log), storage = storage, config = config, log = log }
+    local whList
+    if storage then pcall(function() whList = peripheral.call(storage, "list") end) end
+    local fctx = { bridge = bridgePort.new(bridge, log), storage = storage, warehouse = whList, config = config, log = log }
     fulfill.handle(d.reqGroups.eq, fctx)
     fulfill.handle(d.reqGroups.bd, fctx)
     fulfill.handle(d.reqGroups.ot, fctx)

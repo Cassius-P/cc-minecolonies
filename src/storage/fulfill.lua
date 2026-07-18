@@ -50,13 +50,24 @@ function M.handle(list, ctx)
       goto continue
     end
 
+    -- Equipment we already exported can sit in the warehouse for several scans
+    -- before a courier collects it (unlike stack deliverables). Count it so we
+    -- don't re-export/re-craft the same tool every scan during delivery lag.
+    local have = item.equipment and plan.warehouseHave(ctx.warehouse, plan.equipNames(item, af)) or 0
+    if have >= item.count then
+      item.provided = item.count
+      item.displayColor = "filled"
+      goto continue
+    end
+    local need = item.count - have
+
     local cands = resolve(bridge, item, af)
     local stocked, craftFilter = plan.selectCandidates(cands)
 
     -- Pass 1: export an in-stock candidate (exact, by fingerprint).
     if stocked then
-      item.provided = bridge.exportItem(plan.withCount(stocked, item.count), storage)
-      local token, done = plan.exportToken(item.provided, item.count)
+      item.provided = bridge.exportItem(plan.withCount(stocked, need), storage)
+      local token, done = plan.exportToken(have + item.provided, item.count)
       item.displayColor = token   -- "filled" (Domum too; flagged by its purple materials line) or "partial"
       if done then goto continue end
     end
@@ -68,12 +79,13 @@ function M.handle(list, ctx)
     end
     if item.equipment and not af.equipment then goto continue end
 
-    if craftFilter and (item.provided or 0) < item.count then
+    local shortfall = item.count - have - (item.provided or 0)
+    if craftFilter and shortfall > 0 then
       if bridge.isCrafting(craftFilter) then
         item.displayColor = "crafting"
         goto continue
       end
-      local ok = bridge.craftItem(plan.withCount(craftFilter, item.count - (item.provided or 0)))
+      local ok = bridge.craftItem(plan.withCount(craftFilter, shortfall))
       item.displayColor = plan.craftResultToken(ok)
     elseif not stocked then
       log.write((item.displayLabel or item.item_displayName or item.item_name) .. " not in system or craftable.")
