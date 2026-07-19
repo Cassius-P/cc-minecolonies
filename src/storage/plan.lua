@@ -43,31 +43,35 @@ function M.equipNames(item, af)
   return out
 end
 
--- Order an equipment request's accepted item names vanilla-first (minecraft:*),
--- then the rest, keeping each group's original order and dropping duplicates.
+-- Order an equipment request's accepted items ({name, fingerprint}) vanilla-first
+-- (minecraft:*), then the rest, keeping each group's order and dropping name dups.
 -- Lets fulfill prefer a vanilla item over a modded one while still falling back.
-function M.orderAccept(names)
+function M.orderAccept(items)
   local van, rest, seen = {}, {}, {}
-  for _, n in ipairs(names or {}) do
+  for _, it in ipairs(items or {}) do
+    local n = it and it.name
     if type(n) == "string" and not seen[n] then
       seen[n] = true
-      if n:find("^minecraft:") then van[#van + 1] = n else rest[#rest + 1] = n end
+      if n:find("^minecraft:") then van[#van + 1] = it else rest[#rest + 1] = it end
     end
   end
-  for _, n in ipairs(rest) do van[#van + 1] = n end
+  for _, it in ipairs(rest) do van[#van + 1] = it end
   return van
 end
 
 -- Count how many of `names` already sit in a warehouse `.list()` result (slot ->
 -- {name, count}). Equipment we exported but the colony hasn't collected yet
 -- lives here; without this, fulfill re-crafts every scan during delivery lag.
-function M.warehouseHave(list, names)
+-- pristineOnly skips stacks carrying NBT (enchantments/damage/components): an
+-- enchanted "Blessed Iron Leggings" must NOT satisfy a request for a plain one,
+-- or fulfill marks it filled forever while the colony keeps waiting.
+function M.warehouseHave(list, names, pristineOnly)
   if not list or not names then return 0 end
   local want = {}
   for _, n in ipairs(names) do want[n] = true end
   local total = 0
   for _, s in pairs(list) do
-    if s and want[s.name] then total = total + (s.count or 0) end
+    if s and want[s.name] and not (pristineOnly and s.nbt) then total = total + (s.count or 0) end
   end
   return total
 end

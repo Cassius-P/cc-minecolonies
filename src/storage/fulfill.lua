@@ -5,8 +5,9 @@
 -- crafts for what is missing. Every item is operated on by its Advanced
 -- Peripherals fingerprint (exact item id), never a bare name string:
 --   * Domum / plain items -> the request's own fingerprint (exact NBT/materials).
---   * Equipment level ranges -> each in-range material name is looked up to get
---     its fingerprint, then export/craft use that fingerprint.
+--   * Equipment -> the colony's accepted-items list (vanilla-first), each looked
+--     up by its exact fingerprint so an enchanted/damaged same-id stack (which the
+--     colony rejects) is never exported; pristine warehouse stock counts as filled.
 -- The pure decisions (tier ranges, candidate selection, status tokens) live in
 -- storage/plan.lua; all bridge I/O goes through a BridgePort (ctx.bridge), so
 -- this file just sequences the export/craft passes and applies the tokens.
@@ -19,19 +20,23 @@ local M = {}
 -- Exposed for unit tests (pure, delegates to plan).
 M.equipNames = plan.equipNames
 
--- Equipment candidate item ids in priority order: the colony's own accept list
--- (vanilla-first), else the synthesized tier range when no accept list is present.
-local function equipCandidateNames(item, af)
-  if item.acceptNames and #item.acceptNames > 0 then return plan.orderAccept(item.acceptNames) end
-  return plan.equipNames(item, af)
+-- Equipment candidates ({name, fingerprint}) in priority order: the colony's own
+-- accept list (vanilla-first), else the synthesized tier range (names only) when
+-- no accept list is present.
+local function equipCandidates(item, af)
+  if item.acceptItems and #item.acceptItems > 0 then return plan.orderAccept(item.acceptItems) end
+  local out = {}
+  for _, n in ipairs(plan.equipNames(item, af)) do out[#out + 1] = { name = n } end
+  return out
 end
 
 -- Resolve a request to fingerprint-based candidates via the bridge port.
--- Equipment is resolved by NAME (not the request fingerprint, which hashes
--- differently from the stored stack); the by-name getItem returns the correct
--- storage-side fingerprint to export. Stops once a stocked AND a craftable
--- candidate are found (accept lists can be ~30 items -> avoid that many calls).
-local function resolve(bridge, item, names)
+-- Equipment is resolved by the accept item's exact FINGERPRINT (falling back to
+-- name only when none is known): a bare-name lookup grabs enchanted/damaged
+-- variants that share the id (e.g. a "Blessed Iron Leggings"), which the colony
+-- rejects. Stops once a stocked AND a craftable candidate are found (accept lists
+-- can be ~40 items -> avoid that many bridge calls).
+local function resolve(bridge, item, cands)
   local out = {}
   if not item.equipment then
     local base = item.fingerprint and { fingerprint = item.fingerprint } or { name = item.item_name }
@@ -39,8 +44,9 @@ local function resolve(bridge, item, names)
     return out
   end
   local haveStocked, haveCraft = false, false
-  for _, name in ipairs(names) do
-    local c = bridge.getItem({ name = name })
+  for _, cand in ipairs(cands) do
+    local filter = cand.fingerprint and { fingerprint = cand.fingerprint } or { name = cand.name }
+    local c = bridge.getItem(filter)
     if c then
       out[#out + 1] = c
       if c.amount > 0 then haveStocked = true end
@@ -67,8 +73,13 @@ function M.handle(list, ctx)
     -- Equipment we already exported can sit in the warehouse for several scans
     -- before a courier collects it (unlike stack deliverables). Count it so we
     -- don't re-export/re-craft the same tool every scan during delivery lag.
-    local names = item.equipment and equipCandidateNames(item, af) or nil
-    local have = names and plan.warehouseHave(ctx.warehouse, names) or 0
+    local cands = item.equipment and equipCandidates(item, af) or nil
+    local have = 0
+    if cands then
+      local names = {}
+      for _, c in ipairs(cands) do names[#names + 1] = c.name end
+      have = plan.warehouseHave(ctx.warehouse, names, true)  -- pristine only: skip enchanted/damaged
+    end
     if have >= item.count then
       item.provided = item.count
       item.displayColor = "filled"
@@ -76,8 +87,8 @@ function M.handle(list, ctx)
     end
     local need = item.count - have
 
-    local cands = resolve(bridge, item, names)
-    local stocked, craftFilter = plan.selectCandidates(cands)
+    local resolved = resolve(bridge, item, cands)
+    local stocked, craftFilter = plan.selectCandidates(resolved)
 
     -- Pass 1: export an in-stock candidate (exact, by fingerprint).
     if stocked then

@@ -47,19 +47,32 @@ do
   t.eq(plan.craftResultToken(false), "partial")
 end
 
-t.case("orderAccept puts vanilla first, keeps order, dedups")
+t.case("orderAccept puts vanilla first, keeps order, dedups, carries fingerprint")
 do
   local out = plan.orderAccept({
-    "mekanism:hazmat_pants", "minecraft:leather_leggings",
-    "the_bumblezone:honey_bee_leggings_1", "minecraft:iron_leggings",
-    "minecraft:leather_leggings",  -- dup
+    { name = "mekanism:hazmat_pants", fingerprint = "fpH" },
+    { name = "minecraft:leather_leggings", fingerprint = "fpL" },
+    { name = "the_bumblezone:honey_bee_leggings_1", fingerprint = "fpB" },
+    { name = "minecraft:iron_leggings", fingerprint = "fpI" },
+    { name = "minecraft:leather_leggings", fingerprint = "fpL2" },  -- name dup
   })
-  t.eq(out[1], "minecraft:leather_leggings", "vanilla first, request order")
-  t.eq(out[2], "minecraft:iron_leggings")
-  t.eq(out[3], "mekanism:hazmat_pants", "modded after vanilla, request order")
-  t.eq(out[4], "the_bumblezone:honey_bee_leggings_1")
-  t.eq(#out, 4, "duplicate dropped")
+  t.eq(out[1].name, "minecraft:leather_leggings", "vanilla first, request order")
+  t.eq(out[1].fingerprint, "fpL", "fingerprint carried")
+  t.eq(out[2].name, "minecraft:iron_leggings")
+  t.eq(out[3].name, "mekanism:hazmat_pants", "modded after vanilla, request order")
+  t.eq(out[4].name, "the_bumblezone:honey_bee_leggings_1")
+  t.eq(#out, 4, "duplicate name dropped")
   t.eq(#plan.orderAccept(nil), 0, "nil safe")
+end
+
+t.case("warehouseHave pristineOnly skips enchanted/NBT stacks")
+do
+  local list = {
+    [1] = { name = "minecraft:iron_leggings", count = 1, nbt = "abc" },  -- enchanted
+    [2] = { name = "minecraft:iron_leggings", count = 1 },               -- pristine
+  }
+  t.eq(plan.warehouseHave(list, { "minecraft:iron_leggings" }), 2, "counts all by default")
+  t.eq(plan.warehouseHave(list, { "minecraft:iron_leggings" }, true), 1, "pristine only")
 end
 
 t.case("warehouseHave sums matching names across a warehouse list")

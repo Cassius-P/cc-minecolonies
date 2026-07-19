@@ -39,20 +39,21 @@ do
   t.eq(ot[1].item_name, "minecraft:torch")
 end
 
-t.case("equipment stores the full accept list from items[]")
+t.case("equipment stores the full accept list (name+fingerprint) from items[]")
 do
   local raw = {
     { name = "Leggings", target = "Knight Billy", count = 1,
       desc = "Leggings with minimal level: Leather and with maximal level: Iron",
       items = {
-        { name = "mekanism:hazmat_pants", displayName = "[Hazmat Pants]" },
-        { name = "minecraft:iron_leggings", displayName = "[Iron Leggings]" },
+        { name = "mekanism:hazmat_pants", displayName = "[Hazmat Pants]", fingerprint = "fpH" },
+        { name = "minecraft:iron_leggings", displayName = "[Iron Leggings]", fingerprint = "fpI" },
       } },
   }
   local eq = requests.categorize(raw)
-  t.eq(#eq[1].acceptNames, 2)
-  t.eq(eq[1].acceptNames[1], "mekanism:hazmat_pants")
-  t.eq(eq[1].acceptNames[2], "minecraft:iron_leggings")
+  t.eq(#eq[1].acceptItems, 2)
+  t.eq(eq[1].acceptItems[1].name, "mekanism:hazmat_pants")
+  t.eq(eq[1].acceptItems[1].fingerprint, "fpH")
+  t.eq(eq[1].acceptItems[2].name, "minecraft:iron_leggings")
 end
 
 t.case("domum block: type shown in the materials line")

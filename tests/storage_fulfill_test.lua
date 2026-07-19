@@ -85,17 +85,17 @@ do
   t.eq(list[4].displayColor, "missing", "not in system / uncraftable")
 end
 
-t.case("equipment prefers vanilla from the accept list over a modded one")
+t.case("equipment prefers vanilla from the accept list and exports by fingerprint")
 do
   local nolog = { safeCall = function(fn) return (pcall(fn)) end, write = function() end }
   local exported
-  local stock = {
-    ["mekanism:hazmat_pants"]    = { amount = 5, isCraftable = true, fingerprint = "fp_hazmat" },
-    ["minecraft:iron_leggings"]  = { amount = 5, isCraftable = true, fingerprint = "fp_iron" },
+  local stock = {  -- keyed by fingerprint (resolve looks up by fp now)
+    fp_hazmat = { amount = 5, isCraftable = true, fingerprint = "fp_hazmat" },
+    fp_iron   = { amount = 5, isCraftable = true, fingerprint = "fp_iron" },
   }
   local raw = {
     getItem = function(f)
-      local s = stock[f.name]
+      local s = stock[f.fingerprint or f.name]
       if not s then return nil end
       return { amount = s.amount, isCraftable = s.isCraftable, fingerprint = s.fingerprint }
     end,
@@ -107,12 +107,45 @@ do
     bridge = bridgePort.new(raw, nolog), storage = "barrel", log = nolog,
     config = { autofulfill = { enabled = true, craftMissing = true, equipment = true } },
   }
-  -- items[] order lists the modded item first; orderAccept must still pick vanilla.
-  local item = { count = 1, equipment = true, equipPiece = "Leggings",
-    acceptNames = { "mekanism:hazmat_pants", "minecraft:iron_leggings" } }
+  -- items[] lists the modded item first; orderAccept must still pick vanilla.
+  local item = { count = 1, equipment = true, equipPiece = "Leggings", acceptItems = {
+    { name = "mekanism:hazmat_pants",   fingerprint = "fp_hazmat" },
+    { name = "minecraft:iron_leggings", fingerprint = "fp_iron" },
+  } }
   fulfill.handle({ item }, ctx)
   t.eq(exported, "fp_iron", "vanilla iron_leggings exported, not hazmat")
   t.eq(item.displayColor, "filled")
+end
+
+t.case("enchanted warehouse stack does not satisfy a pristine request; craft a valid one")
+do
+  local nolog = { safeCall = function(fn) return (pcall(fn)) end, write = function() end }
+  local crafted
+  -- ME has no pristine iron (fp lookup misses); pristine leather is craftable.
+  local stock = { fp_leather = { amount = 0, isCraftable = true, fingerprint = "fp_leather" } }
+  local raw = {
+    getItem = function(f)
+      local s = stock[f.fingerprint]
+      if not s then return nil end
+      return { amount = s.amount, isCraftable = s.isCraftable, fingerprint = s.fingerprint }
+    end,
+    exportItemToPeripheral = function() return 0 end,
+    isItemCrafting = function() return false end,
+    craftItem = function(f) crafted = f.fingerprint; return true end,
+  }
+  local ctx = {
+    bridge = bridgePort.new(raw, nolog), storage = "barrel", log = nolog,
+    -- an enchanted "Blessed Iron Leggings" sits in the warehouse (has nbt)
+    warehouse = { { name = "minecraft:iron_leggings", count = 1, nbt = "blessed" } },
+    config = { autofulfill = { enabled = true, craftMissing = true, equipment = true } },
+  }
+  local item = { count = 1, equipment = true, equipPiece = "Leggings", acceptItems = {
+    { name = "minecraft:leather_leggings", fingerprint = "fp_leather" },
+    { name = "minecraft:iron_leggings",    fingerprint = "fp_iron" },
+  } }
+  fulfill.handle({ item }, ctx)
+  t.eq(crafted, "fp_leather", "crafts a pristine acceptable leggings, not blocked by the enchanted one")
+  t.eq(item.displayColor, "crafting")
 end
 
 t.case("equipment already in warehouse -> filled, no re-craft (loop guard)")
