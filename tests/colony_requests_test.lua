@@ -39,6 +39,21 @@ do
   t.eq(ot[1].item_name, "minecraft:torch")
 end
 
+t.case("specific 'N Tier Piece' request labels the tier, not (Any)")
+do
+  local raw = {
+    { name = "Leggings", target = "Knight Billy", count = 1, desc = "1 Iron Leggings",
+      items = { { name = "minecraft:iron_leggings", displayName = "[Iron Leggings]" } } },
+    { name = "Chestplate", target = "Guard", count = 1, desc = "1 Golden Chestplate",
+      items = { { name = "minecraft:golden_chestplate", displayName = "[Golden Chestplate]" } } },
+  }
+  local eq = requests.categorize(raw)
+  t.eq(eq[1].displayLabel, "Leggings (Iron)")
+  t.eq(eq[1].minLevel, "Iron")
+  t.eq(eq[1].maxLevel, "Iron")
+  t.eq(eq[2].displayLabel, "Chestplate (Gold)", "Golden -> Gold canonical label")
+end
+
 t.case("equipment stores the full accept list (name+fingerprint) from items[]")
 do
   local raw = {

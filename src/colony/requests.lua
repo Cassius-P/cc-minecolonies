@@ -35,6 +35,21 @@ local function levelWord(s, which)
   return v
 end
 
+-- Specific "1 Iron Leggings" style requests carry the tier as a material word
+-- (no "level:" wording); map it to the canonical range label. Longer names first
+-- so "Chainmail"/"Golden"/"Wooden" win over any shorter substring.
+local TIER_WORDS = {
+  { "Netherite", "Netherite" }, { "Diamond", "Diamond" }, { "Chainmail", "Chain" },
+  { "Golden", "Gold" }, { "Leather", "Leather" }, { "Wooden", "Wood" },
+  { "Stone", "Stone" }, { "Iron", "Iron" },
+}
+local function tierWord(s)
+  for _, tw in ipairs(TIER_WORDS) do
+    if string.find(s, tw[1]) then return tw[2] end
+  end
+  return nil
+end
+
 -- "minecraft:spruce_log" -> "Spruce Log"
 local function prettyMat(id)
   id = tostring(id):gsub("^.*[:/]", ""):gsub("_", " ")
@@ -99,6 +114,10 @@ function M.categorize(rawRequests, log)
         local bi = baseItem(base.desc) or baseItem(req.name) or req.name
         local minL = levelWord(base.desc, "minimal")
         local maxL = levelWord(base.desc, "maximal")
+        if not minL and not maxL then  -- specific "1 Iron Leggings" -> exact tier, not "Any"
+          local tier = tierWord(base.desc)
+          if tier then minL, maxL = tier, tier end
+        end
         local level = maxL or "Any Level"
         base.name = (maxL and (maxL .. " ") or "") .. req.name  -- keep for crafting
         base.level = level
