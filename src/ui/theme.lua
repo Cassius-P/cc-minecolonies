@@ -91,6 +91,7 @@ function M.apply(name, screens, config)
   for k, v in pairs(t.sem) do M.C[k] = v end
   for _, s in ipairs(screens) do
     for c, hex in pairs(t.palette) do s.mon.setPaletteColour(c, hex) end
+    if s.frame then s.frame.set("background", M.C.card) end  -- column gap shows the card colour, not raw screen
   end
 end
 

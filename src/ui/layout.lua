@@ -223,8 +223,8 @@ local function drawFooter(screen, data, state, hooks)
   local W = screen.W
   draw.fillRect(1, 1, W, 1, C.cardTitle)
 
-  -- Left: colony info.
-  local info = string.format("%s #%s", tostring(data and data.name or "?"), tostring(data and data.id or "?"))
+  -- Left: colony name.
+  local info = tostring(data and data.name or "?")
   draw.put(2, 1, info, C.dim, C.cardTitle)
 
   -- Right cluster: EDIT icon; THEME + SECTIONS appear (to its left) in EDIT,

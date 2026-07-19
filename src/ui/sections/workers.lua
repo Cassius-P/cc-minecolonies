@@ -30,7 +30,7 @@ local function drawRosterRow(rx, ry, colW, r)
     elseif r.status == "replace" then
       draw.put(rx, ry, trunc(" " .. r.name .. " \26 " .. r.repl, colW), C.warn, C.card)
     else
-      draw.put(rx, ry, trunc(" " .. r.name .. " ok", colW), C.good, C.card)
+      draw.put(rx, ry, trunc(" " .. r.name, colW), C.good, C.card)
     end
   else -- slot
     if r.status == "assign" then
