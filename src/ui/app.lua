@@ -105,6 +105,7 @@ function M.start(cfgModule)
   local hooks = {}
 
   local function rescan()
+    state.rearm()   -- restart the countdown at scan START, so scan latency isn't a stall at full
     local ok, res = pcall(api.gather, { colony = colony, config = config, log = log })
     if ok then
       state.setData(res, string.format("%d workers  %d req", #res.suggestions, #res.requests))
@@ -297,9 +298,12 @@ function M.start(cfgModule)
     while true do
       sleep(1)
       state.tick()
-      local anyModal = false
-      for _, s in ipairs(screens) do if s.modal then anyModal = true; break end end
-      if (state.needScan or state.countdown <= 0) and not anyModal and not loading then rescan() end
+      if state.needScan or state.countdown <= 0 then
+        local anyModal = false
+        for _, s in ipairs(screens) do if s.modal then anyModal = true; break end end
+        if not anyModal and not loading then rescan()
+        else state.rearm() end   -- scan deferred (modal/loading) -> still cycle the bar
+      end
       redrawAll()
     end
   end)

@@ -14,7 +14,7 @@ do
   t.falsy(s.needScan)
 end
 
-t.case("setData / setScanError reset scan + countdown")
+t.case("setData / setScanError clear scan flag but do NOT re-arm the countdown")
 do
   local s = newStore()
   s.countdown = 1; s.needScan = true
@@ -22,21 +22,21 @@ do
   t.eq(s.data.x, 1)
   t.eq(s.msg, "msg")
   t.falsy(s.needScan)
-  t.eq(s.countdown, 5, "re-armed")
+  t.eq(s.countdown, 1, "countdown untouched; rearm() owns the interval")
 
   s.needScan = true
   s.setScanError("boom")
   t.eq(s.msg, "boom")
   t.falsy(s.needScan)
-  t.eq(s.countdown, 5)
 end
 
-t.case("countdown re-arms from live config.refreshSeconds")
+t.case("rearm re-arms countdown from live config.refreshSeconds")
 do
   local cfg = { refreshSeconds = 5, theme = "deepslate" }
   local s = store.new(cfg)
+  s.countdown = 1
   cfg.refreshSeconds = 12          -- admin edits the polling interval live
-  s.setData({}, "")
+  s.rearm()
   t.eq(s.countdown, 12, "re-arm uses current config value, not a cached one")
 end
 

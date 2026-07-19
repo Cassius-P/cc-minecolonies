@@ -32,12 +32,12 @@ function M.new(config)
   }
 
   -- Colony scan ----------------------------------------------------------
-  function s.setData(data, msg)
-    s.data, s.msg, s.needScan, s.countdown, s.armAt = data, msg, false, refresh(), os.epoch("utc")
-  end
-  function s.setScanError(msg)
-    s.msg, s.needScan, s.countdown, s.armAt = msg, false, refresh(), os.epoch("utc")
-  end
+  -- Re-arm the interval: start the countdown/progress bar NOW. Called at scan
+  -- START (so scan latency doesn't stall the bar at full) and each interval the
+  -- scan is deferred (e.g. a modal is open) so the bar keeps cycling.
+  function s.rearm() s.countdown, s.armAt = refresh(), os.epoch("utc") end
+  function s.setData(data, msg) s.data, s.msg, s.needScan = data, msg, false end
+  function s.setScanError(msg) s.msg, s.needScan = msg, false end
   function s.markScan() s.needScan = true end
   function s.tick() s.countdown = s.countdown - 1; return s.countdown end
 
